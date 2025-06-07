@@ -74,8 +74,8 @@ def login(request):
 def dashboard(request):
     try:
         profile = UserProfile.objects.get(user=request.user)
-        has_google = profile.google_token is not None
-        has_hubspot = profile.hubspot_token is not None
+        has_google = profile.google_token is not None and profile.google_refresh_token != ''
+        has_hubspot = profile.hubspot_token is not None and profile.hubspot_refresh_token != ''
         print(
             f"User {request.user.username} - Profile found - Google: {has_google}, HubSpot: {has_hubspot}")
     except UserProfile.DoesNotExist:

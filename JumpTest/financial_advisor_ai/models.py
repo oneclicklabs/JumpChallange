@@ -9,7 +9,7 @@ class UserProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     google_token = models.TextField(blank=True, null=True)
     google_refresh_token = models.TextField(blank=True, null=True)
-    hubspot_token = models.TextField(blank=True, null=True)
+    hubspot_token = models.TextField(blank=True, null=True, default='')
     hubspot_refresh_token = models.TextField(blank=True, null=True)
 
 
