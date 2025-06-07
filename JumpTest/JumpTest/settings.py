@@ -39,14 +39,11 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'financial_advisor_ai',  # Add our new app
-    'social_django',  # For OAuth authentication
     'rest_framework',  # For API endpoints
 ]
 
 
 MIDDLEWARE = [
-    # Our custom middleware to fix Google OAuth flow issues must come first
-    # 'financial_advisor_ai.middleware.GoogleOAuthFixMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -54,8 +51,6 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    # Add social auth middleware
-    'social_django.middleware.SocialAuthExceptionMiddleware',
 ]
 
 ROOT_URLCONF = 'JumpTest.urls'
@@ -70,8 +65,6 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
-                'social_django.context_processors.backends',
-                'social_django.context_processors.login_redirect',
             ],
         },
     },
@@ -133,36 +126,29 @@ STATICFILES_DIRS = (os.path.join(BASE_DIR, 'static'),)
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# Add Social Auth configurations
+# Authentication configuration
 AUTHENTICATION_BACKENDS = (
-    'social_core.backends.google.GoogleOAuth2',  # for Google OAuth
     'django.contrib.auth.backends.ModelBackend',
 )
 
-# Enable debug social auth for better error messages
-SOCIAL_AUTH_RAISE_EXCEPTIONS = True
-RAISE_EXCEPTIONS = True
-SOCIAL_AUTH_LOGIN_ERROR_URL = '/login/'
-
-SOCIAL_AUTH_GOOGLE_OAUTH2_KEY = '700346348094-0aj9m14vfkbridgtgtih44sjfh7djdqg.apps.googleusercontent.com'
-SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET = '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'
-SOCIAL_AUTH_GOOGLE_OAUTH2_SCOPE = [
+# Google OAuth Settings
+GOOGLE_CLIENT_ID = '700346348094-0aj9m14vfkbridgtgtih44sjfh7djdqg.apps.googleusercontent.com'
+GOOGLE_CLIENT_SECRET = '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'
+GOOGLE_REDIRECT_URI = 'http://127.0.0.1:8000/google/callback/'
+GOOGLE_AUTH_SCOPES = [
+    'openid',
     'https://www.googleapis.com/auth/gmail.modify',
     'https://www.googleapis.com/auth/calendar',
     'https://www.googleapis.com/auth/userinfo.email',
     'https://www.googleapis.com/auth/userinfo.profile',
 ]
 
-# Google OAuth Settings
-SOCIAL_AUTH_GOOGLE_OAUTH2_AUTH_EXTRA_ARGUMENTS = {
-    'access_type': 'offline',
-    'prompt': 'consent'
-}
+# OAuth State session key
+GOOGLE_OAUTH_STATE_SESSION_KEY = 'google_oauth_state'
 
-# Fix common OAuth issues
-SOCIAL_AUTH_REDIRECT_IS_HTTPS = False  # Set to True in production
-SOCIAL_AUTH_GOOGLE_OAUTH2_USE_DEPRECATED_API = True
-SOCIAL_AUTH_JSONFIELD_ENABLED = True
+# JWT settings for session management
+SESSION_COOKIE_AGE = 86400  # 1 day
+SESSION_COOKIE_SECURE = False  # Set to True in production
 
 HUBSPOT_CLIENT_ID = '65fcc65b-29e2-4c1b-956c-e632bf14ca08'
 HUBSPOT_CLIENT_SECRET = '5f47005a-4480-4ba6-9d30-126720077444'

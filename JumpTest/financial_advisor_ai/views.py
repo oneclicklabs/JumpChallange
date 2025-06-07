@@ -5,6 +5,8 @@ from django.conf import settings
 from django.urls import reverse
 from django.contrib import messages
 from datetime import datetime
+from django.contrib.auth import login as auth_login
+from django.contrib.auth.models import User
 
 # Create your views here.
 import os
@@ -13,29 +15,28 @@ import requests
 import google.oauth2.credentials
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import Flow
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
 
 from .models import UserProfile, HubspotContact, EmailInteraction, CalendarEvent
 
 
-def GoogleAuthRed(request):
+def google_login(request):
     """
-    Google OAuth2 authorization endpoint to initiate the login flow.
-    This function redirects the user to Google's authentication page,
-    then Google will redirect back to our callback URL.
+    Initiates the Google OAuth2 login flow.
     """
     # Create flow instance to manage the OAuth 2.0 Authorization flow
     flow = Flow.from_client_config(
         {
             "web": {
-                "client_id": settings.SOCIAL_AUTH_GOOGLE_OAUTH2_KEY,
-                "client_secret": settings.SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET,
+                "client_id": settings.GOOGLE_CLIENT_ID,
+                "client_secret": settings.GOOGLE_CLIENT_SECRET,
                 "auth_uri": "https://accounts.google.com/o/oauth2/auth",
                 "token_uri": "https://oauth2.googleapis.com/token",
                 "redirect_uris": [settings.GOOGLE_REDIRECT_URI],
             }
         },
-        scopes=['https://www.googleapis.com/auth/calendar.readonly',
-                'https://www.googleapis.com/auth/gmail.readonly']
+        scopes=settings.GOOGLE_AUTH_SCOPES
     )
 
     # Set the redirect URI to the callback endpoint
@@ -49,7 +50,7 @@ def GoogleAuthRed(request):
     )
 
     # Store the state in the session for later validation
-    request.session['google_oauth_state'] = state
+    request.session[settings.GOOGLE_OAUTH_STATE_SESSION_KEY] = state
 
     # Redirect to Google's authorization page
     return redirect(authorization_url)
@@ -187,8 +188,8 @@ def sync_gmail(request):
         credentials = google.oauth2.credentials.Credentials(
             token=profile.google_token,
             refresh_token=profile.google_refresh_token,
-            client_id=settings.SOCIAL_AUTH_GOOGLE_OAUTH2_KEY,
-            client_secret=settings.SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET,
+            client_id=settings.GOOGLE_CLIENT_ID,
+            client_secret=settings.GOOGLE_CLIENT_SECRET,
             token_uri='https://oauth2.googleapis.com/token'
         )
 
@@ -246,8 +247,8 @@ def sync_calendar(request):
         credentials = google.oauth2.credentials.Credentials(
             token=profile.google_token,
             refresh_token=profile.google_refresh_token,
-            client_id=settings.SOCIAL_AUTH_GOOGLE_OAUTH2_KEY,
-            client_secret=settings.SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET,
+            client_id=settings.GOOGLE_CLIENT_ID,
+            client_secret=settings.GOOGLE_CLIENT_SECRET,
             token_uri='https://oauth2.googleapis.com/token'
         )
 
@@ -321,3 +322,103 @@ def ai_insights(request):
             }
         ]
     })
+
+
+def google_callback(request):
+    """
+    Handle the callback from Google OAuth2 authorization.
+    This is where we exchange the authorization code for access tokens
+    and extract user information.
+    """
+    # Get state from session for validation
+    saved_state = request.session.get(
+        settings.GOOGLE_OAUTH_STATE_SESSION_KEY, '')
+
+    # Check if there's an error parameter in the request
+    if 'error' in request.GET:
+        error = request.GET.get('error')
+        messages.error(request, f"Google authentication error: {error}")
+        return redirect('login')
+
+    # Handle any potential spaces or additional parameters in URL
+    code = request.GET.get('code', '')
+    if not code:
+        messages.error(request, "No authorization code received from Google.")
+        return redirect('login')
+
+    try:
+        # Create flow instance with the same configuration
+        flow = Flow.from_client_config(
+            {
+                "web": {
+                    "client_id": settings.GOOGLE_CLIENT_ID,
+                    "client_secret": settings.GOOGLE_CLIENT_SECRET,
+                    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                    "token_uri": "https://oauth2.googleapis.com/token",
+                    "redirect_uris": [settings.GOOGLE_REDIRECT_URI],
+                }
+            },
+            scopes=settings.GOOGLE_AUTH_SCOPES
+        )
+
+        flow.redirect_uri = settings.GOOGLE_REDIRECT_URI
+
+        # Exchange authorization code for tokens, no need to pass state as we're not validating here
+        flow.fetch_token(code=code, include_granted_scopes=True)
+
+        # Get credentials
+        credentials = flow.credentials
+
+        # Get user info from ID token
+        request_session = google_requests.Request()
+        id_info = id_token.verify_oauth2_token(
+            credentials.id_token, request_session, settings.GOOGLE_CLIENT_ID)
+
+        # Extract user information
+        email = id_info.get('email', '')
+
+        if not email:
+            messages.error(request, "Could not retrieve email from Google.")
+            return redirect('login')
+
+        # Find or create user
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            # Create new user
+            username = email.split('@')[0]
+            # Ensure username is unique
+            base_username = username
+            counter = 1
+            while User.objects.filter(username=username).exists():
+                username = f"{base_username}{counter}"
+                counter += 1
+
+            user = User.objects.create_user(
+                username=username,
+                email=email,
+                first_name=id_info.get('given_name', ''),
+                last_name=id_info.get('family_name', '')
+            )
+
+        # Get or create user profile
+        profile, created = UserProfile.objects.get_or_create(user=user)
+
+        # Save tokens
+        profile.google_token = credentials.token
+        profile.google_refresh_token = credentials.refresh_token
+        profile.save()
+
+        # Log user in
+        auth_login(request, user)
+
+        # Add success message
+        messages.success(request, f"Successfully logged in as {email}")
+
+        # Redirect to dashboard
+        return redirect('dashboard')
+
+    except Exception as e:
+        messages.error(
+            request, f"Error during Google authentication: {str(e)}")
+        return redirect('login')

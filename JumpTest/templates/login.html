@@ -26,9 +26,8 @@
             <div class="login-container">
                 <h2>Sign In</h2>
                 <p>Connect with your Google account to get started</p>
-                
-                <div class="oauth-buttons">
-                    <a href="{% url 'social:begin' 'google-oauth2' %}" class="btn-google">
+                  <div class="oauth-buttons">
+                    <a href="{% url 'google_login' %}" class="btn-google">
                         Login with Google
                     </a>
                 </div>
