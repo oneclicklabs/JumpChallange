@@ -31,6 +31,11 @@
             
             <div class="setup-section">
                 <h2>Account Connections</h2>
+                <div class="user-info">
+    <span>Welcome, {{ request.user.first_name|default:request.user.username }}</span>
+    <a href="{% url 'user_settings' %}">Settings</a>
+    <a href="{% url 'logout' %}">Logout</a>
+</div>
                 <div class="connection-cards">                    <div class="connection-card {% if has_google %}connected{% endif %}">
                         <h3>Google Account</h3>
                         <p>Status: {% if has_google %}Connected{% else %}Not Connected{% endif %}</p>

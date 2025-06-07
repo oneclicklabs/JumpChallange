@@ -30,7 +30,8 @@
     padding: 0;
 }
 
-html, body {
+html,
+body {
     font-family: var(--font-main);
     font-size: 16px;
     line-height: 1.5;
@@ -41,7 +42,12 @@ html, body {
     scroll-behavior: smooth;
 }
 
-h1, h2, h3, h4, h5, h6 {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
     margin-bottom: 0.5em;
     font-weight: 600;
     line-height: 1.25;
@@ -506,10 +512,95 @@ input[type="submit"]:disabled {
 
 /* Animations */
 @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(-10px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 .fade-in {
     animation: fadeIn 0.3s ease-in-out;
+}
+
+/* Settings Page Styles */
+.settings-section {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.settings-card {
+    background-color: var(--card-background);
+    border-radius: var(--border-radius);
+    padding: 24px;
+    margin-bottom: 24px;
+    box-shadow: var(--shadow);
+}
+
+.settings-card h3 {
+    margin-top: 0;
+    color: var(--primary-color);
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+}
+
+.form-text {
+    color: var(--text-lighter);
+    font-size: 0.85rem;
+    margin-top: 4px;
+    display: block;
+}
+
+.api-status {
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border-color);
+}
+
+.status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.status-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.status-indicator.connected .status-dot {
+    background-color: var(--success-color);
+    box-shadow: 0 0 5px rgba(76, 175, 80, 0.5);
+}
+
+.status-indicator.disconnected .status-dot {
+    background-color: var(--error-color);
+    box-shadow: 0 0 5px rgba(244, 67, 54, 0.5);
+}
+
+.status-indicator.connected {
+    color: var(--success-color);
+    font-weight: 500;
+}
+
+.status-indicator.disconnected {
+    color: var(--error-color);
+    font-weight: 500;
 }

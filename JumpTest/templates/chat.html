@@ -54,25 +54,59 @@
                 </div>
                 
                 <div class="chat-main">
-                    <div class="chat-messages" id="chat-messages">
+                         <div class="chat-messages" id="chat-messages">
                         {% if chat %}
-                            {% for msg in chat.messages.all %}
-                                <div class="message-container {% if msg.role == 'assistant' %}assistant{% else %}user{% endif %}">
-                                    <div class="message-content">{{ msg.content|linebreaksbr }}</div>
-                                    <div class="message-time">{{ msg.created_at|date:"g:i A" }}</div>
-                                </div>
-                            {% empty %}
-                                <div class="welcome-message">
-                                    <h3>Welcome to Financial Advisor AI</h3>
-                                    <p>Ask me anything about your clients based on their emails and HubSpot data.</p>
-                                    <p>Examples:</p>
-                                    <ul>
-                                        <li>Who mentioned their kid plays baseball?</li>
-                                        <li>Why did Greg say he wanted to sell AAPL stock?</li>
-                                        <li>When did I last talk to Sarah about her retirement plan?</li>
-                                    </ul>
-                                </div>
-                            {% endfor %}
+                            {% if page_obj %}
+                                {% for msg in page_obj %}
+                                    <div class="message-container {% if msg.role == 'assistant' %}assistant{% else %}user{% endif %}">
+                                        <div class="message-content">{{ msg.content|linebreaksbr }}</div>
+                                        <div class="message-time">{{ msg.created_at|date:"g:i A" }}</div>
+                                    </div>
+                                {% empty %}
+                                    <div class="welcome-message">
+                                        <h3>Welcome to Financial Advisor AI</h3>
+                                        <p>Ask me anything about your clients based on their emails and HubSpot data.</p>
+                                        <p>Examples:</p>
+                                        <ul>
+                                            <li>Who mentioned their kid plays baseball?</li>
+                                            <li>Why did Greg say he wanted to sell AAPL stock?</li>
+                                            <li>When did I last talk to Sarah about her retirement plan?</li>
+                                        </ul>
+                                    </div>
+                                {% endfor %}
+                                
+                                {% if page_obj.has_previous or page_obj.has_next %}
+                                    <div class="pagination-controls">
+                                        {% if page_obj.has_previous %}
+                                            <a href="?page={{ page_obj.previous_page_number }}" class="pagination-btn">Previous</a>
+                                        {% endif %}
+                                        
+                                        <span class="pagination-info">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+                                        
+                                        {% if page_obj.has_next %}
+                                            <a href="?page={{ page_obj.next_page_number }}" class="pagination-btn">Next</a>
+                                        {% endif %}
+                                    </div>
+                                {% endif %}
+                            {% else %}
+                                {% for msg in chat.messages.all %}
+                                    <div class="message-container {% if msg.role == 'assistant' %}assistant{% else %}user{% endif %}">
+                                        <div class="message-content">{{ msg.content|linebreaksbr }}</div>
+                                        <div class="message-time">{{ msg.created_at|date:"g:i A" }}</div>
+                                    </div>
+                                {% empty %}
+                                    <div class="welcome-message">
+                                        <h3>Welcome to Financial Advisor AI</h3>
+                                        <p>Ask me anything about your clients based on their emails and HubSpot data.</p>
+                                        <p>Examples:</p>
+                                        <ul>
+                                            <li>Who mentioned their kid plays baseball?</li>
+                                            <li>Why did Greg say he wanted to sell AAPL stock?</li>
+                                            <li>When did I last talk to Sarah about her retirement plan?</li>
+                                        </ul>
+                                    </div>
+                                {% endfor %}
+                            {% endif %}
                         {% else %}
                             <div class="welcome-message">
                                 <h3>Welcome to Financial Advisor AI</h3>

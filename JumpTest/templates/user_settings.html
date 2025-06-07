@@ -1,0 +1,75 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Financial Advisor AI - User Settings</title>
+    <link rel="stylesheet" href="{% static 'style.css' %}">
+    <link rel="stylesheet" href="{% static 'style2.css' %}">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Financial Advisor AI Settings</h1>
+            <div class="user-info">
+                <span>Welcome, {{ request.user.first_name|default:request.user.username }}</span>
+                <a href="{% url 'dashboard' %}">Dashboard</a>
+                <a href="{% url 'chat_list' %}">Chat</a>
+                <a href="{% url 'logout' %}">Logout</a>
+            </div>
+        </header>
+        
+        <main>
+            {% if messages %}
+            <div class="messages">
+                {% for message in messages %}
+                <div class="message {{ message.tags }}">
+                    {{ message }}
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            
+            <div class="settings-section">
+                <h2>API Keys</h2>
+                <div class="settings-card">
+                    <h3>OpenAI API Key</h3>
+                    <p>Provide your OpenAI API key to enable the AI chat functionality.</p>
+                    
+                    <form method="POST" action="{% url 'user_settings' %}">
+                        {% csrf_token %}
+                        <div class="form-group">
+                            <label for="openai_api_key">OpenAI API Key</label>
+                            <input type="password" name="openai_api_key" id="openai_api_key" 
+                                placeholder="sk-..." value="{{ profile.openai_api_key|default:'' }}">
+                            <small class="form-text">Your API key is stored securely and used only for your requests.</small>
+                        </div>
+                        <button type="submit" class="btn-action">Save API Key</button>
+                    </form>
+                    
+                    <div class="api-status">
+                        <h4>Status</h4>
+                        {% if has_openai_key %}
+                            <div class="status-indicator connected">
+                                <span class="status-dot"></span>
+                                <span>API Key Configured</span>
+                            </div>
+                        {% else %}
+                            <div class="status-indicator disconnected">
+                                <span class="status-dot"></span>
+                                <span>API Key Not Configured</span>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </main>
+        
+        <footer>
+            <p>&copy; {% now "Y" %} Financial Advisor AI. All rights reserved.</p>
+        </footer>
+    </div>
+</body>
+</html>
