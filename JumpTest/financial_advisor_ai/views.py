@@ -62,7 +62,7 @@ def login(request):
 
     if error:
         messages.error(request, f"Auth error: {error} - {error_description}")
-        
+
     # If user is already authenticated, make sure they have a profile
     if request.user.is_authenticated:
         UserProfile.objects.get_or_create(user=request.user)
@@ -76,13 +76,15 @@ def dashboard(request):
         profile = UserProfile.objects.get(user=request.user)
         has_google = profile.google_token is not None
         has_hubspot = profile.hubspot_token is not None
-        print(f"User {request.user.username} - Profile found - Google: {has_google}, HubSpot: {has_hubspot}")
+        print(
+            f"User {request.user.username} - Profile found - Google: {has_google}, HubSpot: {has_hubspot}")
     except UserProfile.DoesNotExist:
         # Create profile if it doesn't exist
         profile = UserProfile.objects.create(user=request.user)
         has_google = False
         has_hubspot = False
-        print(f"User {request.user.username} - Profile created - Google: {has_google}, HubSpot: {has_hubspot}")
+        print(
+            f"User {request.user.username} - Profile created - Google: {has_google}, HubSpot: {has_hubspot}")
 
     context = {
         'has_google': has_google,
@@ -114,7 +116,7 @@ def hubspot_auth(request):
         f"&redirect_uri={settings.HUBSPOT_REDIRECT_URI}"
         f"&scope=contacts%20timeline"
     )
-    
+
     # Debug info
     print(f"\n\n=== HUBSPOT AUTH DEBUGGING ===")
     print(f"User: {request.user.username}")
@@ -122,10 +124,10 @@ def hubspot_auth(request):
     print(f"Redirect URI: {settings.HUBSPOT_REDIRECT_URI}")
     print(f"Full Auth URL: {auth_url}")
     print(f"=== END DEBUGGING ===\n\n")
-    
+
     # Ensure we have a user profile
     UserProfile.objects.get_or_create(user=request.user)
-    
+
     messages.info(request, "Redirecting to HubSpot for authorization...")
     return redirect(auth_url)
 
@@ -134,7 +136,7 @@ def hubspot_auth(request):
 def hubspot_callback(request):
     code = request.GET.get('code')
     error = request.GET.get('error')
-    
+
     print(f"\n\n=== HUBSPOT CALLBACK DEBUGGING ===")
     print(f"User: {request.user.username}")
     print(f"Code present: {code is not None}")
@@ -143,13 +145,14 @@ def hubspot_callback(request):
         print(f"Error details: {error}")
     print(f"Query parameters: {request.GET}")
     print(f"=== END DEBUGGING ===\n\n")
-    
+
     if error:
         messages.error(request, f"HubSpot error: {error}")
         return redirect('dashboard')
-    
+
     if not code:
-        messages.error(request, "Failed to connect with HubSpot: No authorization code received.")
+        messages.error(
+            request, "Failed to connect with HubSpot: No authorization code received.")
         return redirect('dashboard')
 
     try:
@@ -162,39 +165,42 @@ def hubspot_callback(request):
             'redirect_uri': settings.HUBSPOT_REDIRECT_URI,
             'code': code
         }
-        
+
         print(f"\n=== TOKEN REQUEST DETAILS ===")
         print(f"URL: {token_url}")
         print(f"Client ID: {settings.HUBSPOT_CLIENT_ID}")
         print(f"Redirect URI: {settings.HUBSPOT_REDIRECT_URI}")
         print(f"=== END DETAILS ===\n")
-        
+
         response = requests.post(token_url, data=token_data)
-        
+
         print(f"\n=== TOKEN RESPONSE ===")
         print(f"Status code: {response.status_code}")
         print(f"Response content: {response.text}")
         print(f"=== END RESPONSE ===\n")
-        
+
         if response.status_code == 200:
             data = response.json()
-            profile, created = UserProfile.objects.get_or_create(user=request.user)
-            
+            profile, created = UserProfile.objects.get_or_create(
+                user=request.user)
+
             # Debug profile
             print(f"Profile created: {created}")
             print(f"Profile ID: {profile.id}")
-            
+
             profile.hubspot_token = data['access_token']
             profile.hubspot_refresh_token = data.get('refresh_token')
             profile.save()
 
             # Debug after save
             print(f"Token saved: {profile.hubspot_token is not None}")
-            print(f"Refresh token saved: {profile.hubspot_refresh_token is not None}")
-            
+            print(
+                f"Refresh token saved: {profile.hubspot_refresh_token is not None}")
+
             # Re-fetch to verify
             updated_profile = UserProfile.objects.get(id=profile.id)
-            print(f"Token verified in DB: {updated_profile.hubspot_token == data['access_token']}")
+            print(
+                f"Token verified in DB: {updated_profile.hubspot_token == data['access_token']}")
 
             # Fetch initial contact data
             fetch_hubspot_contacts(request.user)
@@ -202,9 +208,11 @@ def hubspot_callback(request):
             messages.success(request, "Successfully connected with HubSpot!")
         else:
             error_detail = response.text
-            print(f"HubSpot token error: Status {response.status_code}, Response: {error_detail}")
-            messages.error(request, f"Failed to connect with HubSpot. Error: {error_detail}")
-    
+            print(
+                f"HubSpot token error: Status {response.status_code}, Response: {error_detail}")
+            messages.error(
+                request, f"Failed to connect with HubSpot. Error: {error_detail}")
+
     except Exception as e:
         import traceback
         print(f"Exception in HubSpot callback: {str(e)}")
@@ -250,6 +258,7 @@ def fetch_hubspot_contacts(user):
 
 @login_required
 def sync_gmail(request):
+    print("Syncing Gmail...")
     try:
         profile = UserProfile.objects.get(user=request.user)
 
@@ -267,9 +276,10 @@ def sync_gmail(request):
 
         # Get list of emails
         results = service.users().messages().list(userId='me', maxResults=20).execute()
-        messages = results.get('messages', [])
-
-        for msg in messages:
+        print(f"Results from Gmail API: {results}")
+        Gmessages = results.get('messages', [])
+        print(f"Found {len(Gmessages)} messages in Gmail.")
+        for msg in Gmessages:
             message = service.users().messages().get(
                 userId='me', id=msg['id']).execute()
             headers = message['payload']['headers']
@@ -291,17 +301,19 @@ def sync_gmail(request):
                 contact = contacts.first()
 
                 # Create or update email interaction
-                EmailInteraction.objects.update_or_create(
-                    contact=contact,
-                    subject=subject,
-                    defaults={
-                        'snippet': message.get('snippet', ''),
-                        'received_at': datetime.fromtimestamp(int(message['internalDate'])/1000),
-                    }
-                )
+            EmailInteraction.objects.update_or_create(
+                contact=contact,
+                subject=subject,
+                defaults={
+                    'snippet': message.get('snippet', ''),
+                    'received_at': datetime.fromtimestamp(int(message['internalDate'])/1000),
+                }
+            )
 
+        print("Gmail data synchronized successfully!")
         messages.success(request, "Gmail data synchronized successfully!")
     except Exception as e:
+        print(f"Error synchronizing Gmail: {str(e)}")
         messages.error(request, f"Error synchronizing Gmail: {str(e)}")
 
     return redirect('dashboard')
