@@ -1,0 +1,51 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Financial Advisor AI - Login</title>
+    <link rel="stylesheet" href="{% static 'style.css' %}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Financial Advisor AI</h1>
+        </header>
+          <main>
+            {% if messages %}
+            <div class="messages">
+                {% for message in messages %}
+                <div class="message {{ message.tags }}">
+                    {{ message }}
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            
+            <div class="login-container">
+                <h2>Sign In</h2>
+                <p>Connect with your Google account to get started</p>
+                
+                <div class="oauth-buttons">
+                    <a href="{% url 'social:begin' 'google-oauth2' %}" class="btn-google">
+                        Login with Google
+                    </a>
+                </div>
+                
+                <div class="login-info">
+                    <p>This app requires access to:</p>
+                    <ul>
+                        <li>Gmail - to analyze client communications</li>
+                        <li>Google Calendar - to manage appointments</li>
+                    </ul>
+                </div>
+            </div>
+        </main>
+        
+        <footer>
+            <p>&copy; {% now "Y" %} Financial Advisor AI. All rights reserved.</p>
+        </footer>
+    </div>
+</body>
+</html>

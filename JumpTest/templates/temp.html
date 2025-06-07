@@ -1,0 +1,103 @@
+  {% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Test Form</title>
+  
+    <link rel="stylesheet" href="{% static 'style.css' %}">
+    <script   src="https://code.jquery.com/jquery-3.1.1.min.js"   integrity="sha256-hVVnYaiADRTO2PzUGmuLJr8BLUSjGIZsDYGmIJLv2b8="   crossorigin="anonymous"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Form Example</h1>
+        </header>
+        
+        <main>
+            <form method="POST" action="">
+                {% csrf_token %}
+                
+                <div class="form-group">
+                    <label for="name">Name:</label>
+                    <input type="text" id="name" name="name" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="email">Email:</label>
+                    <input type="email" id="email" name="email" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="message">Message:</label>
+                    <textarea id="message" name="message" rows="4" required></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label>Preferences:</label>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="pref1" name="preferences" value="option1">
+                        <label for="pref1">Option 1</label>
+                    </div>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="pref2" name="preferences" value="option2">
+                        <label for="pref2">Option 2</label>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label>Selection:</label>
+                    <select name="selection">
+                        <option value="">-- Select an option --</option>
+                        <option value="option1">Option 1</option>
+                        <option value="option2">Option 2</option>
+                        <option value="option3">Option 3</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <button type="submit">Submit</button>
+                    <button type="reset">Reset</button>
+                </div>
+            </form>
+            
+            {% if messages %}
+            <div class="messages">
+                {% for message in messages %}
+                <div class="message {{ message.tags }}">
+                    {{ message }}
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </main>
+        
+        <footer>
+            <p>&copy; {% now "Y" %} WebTest. All rights reserved.</p>
+        </footer>
+    </div>
+
+<script type="text/javascript">
+  $(document).on('submit','#post-form',function(e){
+    e.preventDefault();
+
+    $.ajax({
+      type:'POST',
+      url:'/send',
+      data:{
+          username:$('#username').val(),
+          room_id:$('#room_id').val(),
+          message:$('#message').val(),
+        csrfmiddlewaretoken:$('input[name=csrfmiddlewaretoken]').val(),
+      },
+      success: function(data){
+         //alert(data)
+      }
+    });
+    document.getElementById('message').value = ''
+  });
+</script>
+    {% comment %} //<script src="{% static 'js/script.js' %}"></script> {% endcomment %}
+</body>
+</html>

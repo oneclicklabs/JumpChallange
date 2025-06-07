@@ -1,0 +1,76 @@
+  {% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Test Form</title>
+  
+    <link rel="stylesheet" href="{% static 'style.css' %}">
+    <script   src="https://code.jquery.com/jquery-3.1.1.min.js"   integrity="sha256-hVVnYaiADRTO2PzUGmuLJr8BLUSjGIZsDYGmIJLv2b8="   crossorigin="anonymous"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Cutrrancy Converter </h1>
+             {% if result %}
+             <h1>{{result}} </h1>
+             {% endif%}
+        </header>
+         <main>
+            <form method="POST" action="">
+                {% csrf_token %}
+              
+             
+             <div class="form-group">
+                    <label for="_amount">Amount :</label>
+                    <input type="text" id="_amount" name="_amount" >
+                </div>
+                
+               
+                
+            
+                
+             
+                
+            
+                 <label>Source:</label>
+                    <select name="Source" id="Source">
+                        <option value="">-- Select an option --</option>
+                        {% for currancy in rates %}
+                         <option value="{{currancy}}">{{currancy}} </option>
+                        {% endfor%}
+                    </select>
+                      <label>Target:</label>
+                    <select name="Target" id="Target">
+                        <option value="">-- Select an option --</option>
+                        {% for currancy in rates %}
+                         <option value="{{currancy}}">{{currancy}} </option>
+                        {% endfor%}
+                    </select>
+                        <div class="form-group">
+                    <button type="submit" name="Convert">Convert</button>
+                    
+                </div>
+               
+            </form>
+    {% if history %}
+     <div id="display">
+        <!-- Content goes here -->
+         {% for rec in history %}
+                <p >
+                    {{ rec }}
+                </p>
+                {% endfor %}
+        </div>
+        
+      
+      {% endif %} 
+                </main>
+        
+        <footer>
+            <p>&copy; {% now "Y" %} WebTest. All rights reserved.</p>
+        </footer>
+    </div>
+    </body>
+</html>
