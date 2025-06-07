@@ -1,0 +1,160 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Financial Advisor AI - Dashboard</title>
+    <link rel="stylesheet" href="{% static 'style.css' %}">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Financial Advisor AI Dashboard</h1>
+            <div class="user-info">
+                <span>Welcome, {{ request.user.first_name|default:request.user.username }}</span>
+                <a href="{% url 'logout' %}">Logout</a>
+            </div>
+        </header>
+        
+        <main>
+            {% if messages %}
+            <div class="messages">
+                {% for message in messages %}
+                <div class="message {{ message.tags }}">
+                    {{ message }}
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            
+            <div class="setup-section">
+                <h2>Account Connections</h2>
+                <div class="connection-cards">                    <div class="connection-card {% if has_google %}connected{% endif %}">
+                        <h3>Google Account</h3>
+                        <p>Status: {% if has_google %}Connected{% else %}Not Connected{% endif %}</p>
+                        {% if not has_google %}
+                        <a href="{% url 'google_login' %}" class="btn-connect">Connect Google</a>
+                        {% else %}
+                        <div class="connection-actions">
+                            <a href="{% url 'sync_gmail' %}" class="btn-action">Sync Gmail</a>
+                            <a href="{% url 'sync_calendar' %}" class="btn-action">Sync Calendar</a>
+                        </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="connection-card {% if has_hubspot %}connected{% endif %}">
+                        <h3>HubSpot CRM</h3>
+                        <p>Status: {% if has_hubspot %}Connected{% else %}Not Connected{% endif %}</p>
+                        {% if not has_hubspot %}
+                        <a href="{% url 'hubspot_auth' %}" class="btn-connect">Connect HubSpot</a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            
+            {% if has_google and has_hubspot %}
+            <div class="dashboard-content">
+                <div class="dashboard-column">
+                    <div class="dashboard-card">
+                        <h3>Client Overview</h3>
+                        <div class="client-list">
+                            {% if contacts %}
+                                {% for contact in contacts|slice:":5" %}
+                                <div class="client-item">
+                                    <h4>{{ contact.name }}</h4>
+                                    <p>{{ contact.email }}</p>
+                                    <p>Last interaction: {{ contact.last_interaction|default:"No recent interaction" }}</p>
+                                </div>
+                                {% endfor %}
+                                {% if contacts.count > 5 %}
+                                <a href="#" class="view-more">View all clients ({{ contacts.count }})</a>
+                                {% endif %}
+                            {% else %}
+                                <p>No clients found. Sync your HubSpot contacts to see them here.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="dashboard-column">
+                    <div class="dashboard-card">
+                        <h3>Upcoming Events</h3>
+                        <div class="event-list">
+                            {% if upcoming_events %}
+                                {% for event in upcoming_events %}
+                                <div class="event-item">
+                                    <h4>{{ event.title }}</h4>
+                                    <p>{{ event.start_time|date:"F j, Y, g:i a" }}</p>
+                                    <p>{{ event.description|truncatewords:10 }}</p>
+                                </div>
+                                {% endfor %}
+                            {% else %}
+                                <p>No upcoming events. Sync your Google Calendar to see them here.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="dashboard-column">
+                    <div class="dashboard-card ai-insights">
+                        <h3>AI Insights</h3>
+                        <div class="insights-content">
+                            <p>Loading AI insights...</p>
+                        </div>
+                        <button id="refresh-insights" class="btn-action">Refresh Insights</button>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </main>
+        
+        <footer>
+            <p>&copy; {% now "Y" %} Financial Advisor AI. All rights reserved.</p>
+        </footer>
+    </div>
+    
+    <script>
+        $(document).ready(function() {
+            // Function to load AI insights
+            function loadInsights() {
+                $.ajax({
+                    url: "{% url 'ai_insights' %}",
+                    method: "GET",
+                    success: function(data) {
+                        var insightsHtml = '<ul class="insights-list">';
+                        
+                        $.each(data.insights, function(i, insight) {
+                            insightsHtml += '<li class="insight-item">';
+                            insightsHtml += '<h4>' + insight.contact_name + '</h4>';
+                            insightsHtml += '<p>Email: ' + insight.email + '</p>';
+                            insightsHtml += '<p>Last interaction: ' + insight.last_interaction + '</p>';
+                            insightsHtml += '<p>Sentiment: <span class="sentiment-' + insight.sentiment.toLowerCase() + '">' + insight.sentiment + '</span></p>';
+                            insightsHtml += '<p>Suggestion: ' + insight.suggestion + '</p>';
+                            insightsHtml += '</li>';
+                        });
+                        
+                        insightsHtml += '</ul>';
+                        $('.insights-content').html(insightsHtml);
+                    },
+                    error: function() {
+                        $('.insights-content').html('<p>Failed to load insights. Please try again.</p>');
+                    }
+                });
+            }
+            
+            // Load insights on page load if connections are set up
+            {% if has_google and has_hubspot %}
+            loadInsights();
+            {% endif %}
+            
+            // Refresh insights when button is clicked
+            $('#refresh-insights').click(function() {
+                $('.insights-content').html('<p>Loading AI insights...</p>');
+                loadInsights();
+            });
+        });
+    </script>
+</body>
+</html>

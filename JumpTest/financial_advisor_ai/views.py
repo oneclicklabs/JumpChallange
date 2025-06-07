@@ -283,7 +283,7 @@ def sync_gmail(request):
             message = service.users().messages().get(
                 userId='me', id=msg['id']).execute()
             headers = message['payload']['headers']
-
+            # print(f"Processing message ID: {message}")
             # Extract email details
             subject = next(
                 (h['value'] for h in headers if h['name'] == 'Subject'), 'No Subject')
@@ -293,22 +293,23 @@ def sync_gmail(request):
             # Extract email address only
             if '<' in from_email and '>' in from_email:
                 from_email = from_email.split('<')[1].split('>')[0]
-
+            print(f"Processing email from: {from_email}, subject: {subject}")
             # Check if this is from a contact we know
             contacts = HubspotContact.objects.filter(
                 user=request.user, email=from_email)
+
             if contacts.exists():
                 contact = contacts.first()
 
                 # Create or update email interaction
-            EmailInteraction.objects.update_or_create(
-                contact=contact,
-                subject=subject,
-                defaults={
-                    'snippet': message.get('snippet', ''),
-                    'received_at': datetime.fromtimestamp(int(message['internalDate'])/1000),
-                }
-            )
+                EmailInteraction.objects.update_or_create(
+                    contact=contact,
+                    subject=subject,
+                    defaults={
+                        'snippet': message.get('snippet', ''),
+                        'received_at': datetime.fromtimestamp(int(message['internalDate'])/1000),
+                    }
+                )
 
         print("Gmail data synchronized successfully!")
         messages.success(request, "Gmail data synchronized successfully!")
