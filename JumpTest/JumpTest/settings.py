@@ -152,7 +152,7 @@ SESSION_COOKIE_SECURE = False  # Set to True in production
 
 HUBSPOT_CLIENT_ID = '65fcc65b-29e2-4c1b-956c-e632bf14ca08'
 HUBSPOT_CLIENT_SECRET = '5f47005a-4480-4ba6-9d30-126720077444'
-HUBSPOT_REDIRECT_URI = 'http://127.0.0.1:8000/hubspot-callback/'
+HUBSPOT_REDIRECT_URI = 'http://localhost:8000/hubspot-callback/'
 
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'dashboard'

@@ -1,0 +1,228 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Financial Advisor AI - Chat</title>
+    <link rel="stylesheet" href="{% static 'style.css' %}">
+    <link rel="stylesheet" href="{% static 'style2.css' %}">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>Financial Advisor AI Chat</h1>
+            <div class="user-info">
+                <span>Welcome, {{ request.user.first_name|default:request.user.username }}</span>
+                <a href="{% url 'dashboard' %}">Dashboard</a>
+                <a href="{% url 'logout' %}">Logout</a>
+            </div>
+        </header>
+
+        <main>
+            {% if messages %}
+            <div class="messages">
+                {% for message in messages %}
+                <div class="message {{ message.tags }}">
+                    {{ message }}
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <div class="chat-container">
+                <div class="chat-sidebar">
+                    <div class="sidebar-header">
+                        <h3>Conversations</h3>
+                        <button id="new-chat" class="btn-action">New Chat</button>
+                    </div>
+                    <div class="chat-list">
+                        {% for chat_item in chats %}
+                        <div class="chat-item {% if chat_item.id == chat.id %}active{% endif %}" data-id="{{ chat_item.id }}">
+                            <h4>{{ chat_item.title }}</h4>
+                            <p>{{ chat_item.updated_at|date:"M d, Y" }}</p>
+                        </div>
+                        {% empty %}
+                        <div class="empty-state">
+                            <p>No conversations yet</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                
+                <div class="chat-main">
+                    <div class="chat-messages" id="chat-messages">
+                        {% if chat %}
+                            {% for msg in chat.messages.all %}
+                                <div class="message-container {% if msg.role == 'assistant' %}assistant{% else %}user{% endif %}">
+                                    <div class="message-content">{{ msg.content|linebreaksbr }}</div>
+                                    <div class="message-time">{{ msg.created_at|date:"g:i A" }}</div>
+                                </div>
+                            {% empty %}
+                                <div class="welcome-message">
+                                    <h3>Welcome to Financial Advisor AI</h3>
+                                    <p>Ask me anything about your clients based on their emails and HubSpot data.</p>
+                                    <p>Examples:</p>
+                                    <ul>
+                                        <li>Who mentioned their kid plays baseball?</li>
+                                        <li>Why did Greg say he wanted to sell AAPL stock?</li>
+                                        <li>When did I last talk to Sarah about her retirement plan?</li>
+                                    </ul>
+                                </div>
+                            {% endfor %}
+                        {% else %}
+                            <div class="welcome-message">
+                                <h3>Welcome to Financial Advisor AI</h3>
+                                <p>Start a new chat to begin asking questions about your clients.</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="chat-input">
+                        <form id="chat-form" {% if chat %}data-chat-id="{{ chat.id }}"{% endif %}>
+                            {% csrf_token %}
+                            <textarea id="message-input" placeholder="Ask me anything about your clients..." required {% if not chat %}disabled{% endif %}></textarea>
+                            <button type="submit" id="send-message" {% if not chat %}disabled{% endif %}>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <line x1="22" y1="2" x2="11" y2="13"></line>
+                                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                                </svg>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </main>
+        
+        <footer>
+            <p>&copy; {% now "Y" %} Financial Advisor AI. All rights reserved.</p>
+        </footer>
+    </div>
+    
+    <script>
+        $(document).ready(function() {
+            // Scroll to bottom of chat messages
+            function scrollToBottom() {
+                var chatMessages = document.getElementById('chat-messages');
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+            
+            // Call scroll on page load
+            scrollToBottom();
+            
+            // Handle new chat button
+            $('#new-chat').click(function() {
+                window.location.href = "{% url 'chat_new' %}";
+            });
+            
+            // Handle clicking on chat in sidebar
+            $('.chat-item').click(function() {
+                var chatId = $(this).data('id');
+                window.location.href = "/chat/" + chatId + "/";
+            });
+            
+            // Handle form submission
+            $('#chat-form').submit(function(e) {
+                e.preventDefault();
+                
+                var chatId = $(this).data('chat-id');
+                var message = $('#message-input').val().trim();
+                
+                if (message && chatId) {
+                    // Disable input and button while processing
+                    $('#message-input').prop('disabled', true);
+                    $('#send-message').prop('disabled', true);
+                    
+                    // Add user message to UI immediately
+                    $('#chat-messages').append(
+                        '<div class="message-container user">' +
+                        '<div class="message-content">' + message.replace(/\n/g, '<br>') + '</div>' +
+                        '<div class="message-time">Just now</div>' +
+                        '</div>'
+                    );
+                    
+                    // Clear input
+                    $('#message-input').val('');
+                    
+                    // Scroll to bottom
+                    scrollToBottom();
+                    
+                    // Show loading indicator
+                    $('#chat-messages').append(
+                        '<div class="message-container assistant" id="loading-message">' +
+                        '<div class="message-content"><div class="typing-indicator"><span></span><span></span><span></span></div></div>' +
+                        '</div>'
+                    );
+                    scrollToBottom();
+                    
+                    // Send message to server
+                    $.ajax({
+                        url: '/chat/' + chatId + '/message/',
+                        type: 'POST',
+                        data: {
+                            'message': message,
+                            'csrfmiddlewaretoken': $('input[name=csrfmiddlewaretoken]').val()
+                        },
+                        success: function(response) {
+                            // Remove loading indicator
+                            $('#loading-message').remove();
+                            
+                            // Add assistant response
+                            $('#chat-messages').append(
+                                '<div class="message-container assistant">' +
+                                '<div class="message-content">' + response.message.replace(/\n/g, '<br>') + '</div>' +
+                                '<div class="message-time">Just now</div>' +
+                                '</div>'
+                            );
+                            
+                            // Re-enable input and button
+                            $('#message-input').prop('disabled', false);
+                            $('#send-message').prop('disabled', false);
+                            $('#message-input').focus();
+                            
+                            // Scroll to bottom
+                            scrollToBottom();
+                            
+                            // Update the chat title if it's a new chat
+                            if (response.title && response.title !== "New Chat") {
+                                document.title = "Chat - " + response.title;
+                            }
+                        },
+                        error: function() {
+                            // Remove loading indicator
+                            $('#loading-message').remove();
+                            
+                            // Show error message
+                            $('#chat-messages').append(
+                                '<div class="message-container assistant error">' +
+                                '<div class="message-content">Sorry, there was an error processing your request. Please try again.</div>' +
+                                '<div class="message-time">Just now</div>' +
+                                '</div>'
+                            );
+                            
+                            // Re-enable input and button
+                            $('#message-input').prop('disabled', false);
+                            $('#send-message').prop('disabled', false);
+                            
+                            // Scroll to bottom
+                            scrollToBottom();
+                        }
+                    });
+                }
+            });
+            
+            // Enable pressing Enter to send message (Shift+Enter for new line)
+            $('#message-input').keydown(function(e) {
+                if (e.keyCode === 13 && !e.shiftKey) {
+                    e.preventDefault();
+                    $('#chat-form').submit();
+                }
+            });
+        });
+    </script>
+</body>
+
+</html>

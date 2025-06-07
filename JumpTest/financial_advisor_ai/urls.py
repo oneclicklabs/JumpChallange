@@ -13,4 +13,9 @@ urlpatterns = [
     path('sync-gmail/', views.sync_gmail, name='sync_gmail'),
     path('sync-calendar/', views.sync_calendar, name='sync_calendar'),
     path('ai-insights/', views.ai_insights, name='ai_insights'),
+    # Add these URL patterns
+    path('chat/', views.chat_list, name='chat_list'),
+    path('chat/new/', views.chat_new, name='chat_new'),
+    path('chat/<int:chat_id>/', views.chat_detail, name='chat_detail'),
+    path('chat/<int:chat_id>/message/', views.chat_message, name='chat_message'),
 ]

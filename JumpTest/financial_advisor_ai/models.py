@@ -13,6 +13,8 @@ class UserProfile(models.Model):
     hubspot_refresh_token = models.TextField(blank=True, null=True, default='')
     openai_api_key = models.CharField(max_length=255, blank=True, null=True)
 
+# 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
+
 
 class HubspotContact(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
@@ -30,7 +32,7 @@ class EmailInteraction(models.Model):
     received_at = models.DateTimeField()
     sentiment_score = models.FloatField(null=True, blank=True)
     full_content = models.TextField(blank=True)
-    
+
     def serialize_for_vector_db(self):
         """Serialize email for vector DB storage"""
         return {
@@ -62,10 +64,10 @@ class Chat(models.Model):
     title = models.CharField(max_length=255, default="New Chat")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     def __str__(self):
         return f"{self.title} - {self.user.username}"
-    
+
     class Meta:
         ordering = ['-updated_at']
 
@@ -76,15 +78,17 @@ class ChatMessage(models.Model):
         ('assistant', 'Assistant'),
         ('system', 'System'),
     ]
-    
-    chat = models.ForeignKey(Chat, on_delete=models.CASCADE, related_name='messages')
+
+    chat = models.ForeignKey(
+        Chat, on_delete=models.CASCADE, related_name='messages')
     role = models.CharField(max_length=10, choices=ROLE_CHOICES)
     content = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
-    contact = models.ForeignKey(HubspotContact, on_delete=models.SET_NULL, null=True, blank=True)
-    
+    contact = models.ForeignKey(
+        HubspotContact, on_delete=models.SET_NULL, null=True, blank=True)
+
     def __str__(self):
         return f"{self.role}: {self.content[:30]}..."
-    
+
     class Meta:
         ordering = ['created_at']
