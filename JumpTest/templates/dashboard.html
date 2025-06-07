@@ -31,12 +31,11 @@
             
             <div class="setup-section">
                 <h2>Account Connections</h2>
-                <div class="connection-cards">
-                    <div class="connection-card {% if has_google %}connected{% endif %}">
+                <div class="connection-cards">                    <div class="connection-card {% if has_google %}connected{% endif %}">
                         <h3>Google Account</h3>
                         <p>Status: {% if has_google %}Connected{% else %}Not Connected{% endif %}</p>
                         {% if not has_google %}
-                        <a href="{% url 'social:begin' 'google-oauth2' %}" class="btn-connect">Connect Google</a>
+                        <a href="{% url 'google_login' %}" class="btn-connect">Connect Google</a>
                         {% else %}
                         <div class="connection-actions">
                             <a href="{% url 'sync_gmail' %}" class="btn-action">Sync Gmail</a>
