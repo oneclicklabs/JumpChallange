@@ -1,4 +1,4 @@
-from django.shortcuts import render, redirect, get_object_or_404
+from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.conf import settings
@@ -7,9 +7,7 @@ from django.contrib import messages
 from datetime import datetime
 from django.contrib.auth import login as auth_login
 from django.contrib.auth.models import User
-from django.views.decorators.csrf import csrf_exempt
-from django.db.models import Q
-
+from django.shortcuts import get_object_or_404
 # Create your views here.
 import os
 import json
@@ -21,7 +19,7 @@ from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 
 from .models import UserProfile, HubspotContact, EmailInteraction, CalendarEvent, Chat, ChatMessage
-from .utils import RAGService
+from .utils import RAGService  # Assuming you have a utility for RAG processing
 
 
 def google_login(request):
@@ -422,227 +420,227 @@ def ai_insights(request):
     })
 
 
-@login_required
-def chat_list(request):
-    """View for listing all chats for the user"""
-    chats = Chat.objects.filter(user=request.user)
+# @login_required
+# def chat_list(request):
+#     """View for listing all chats for the user"""
+#     chats = Chat.objects.filter(user=request.user)
 
-    # If there's at least one chat, redirect to the most recent
-    if chats.exists():
-        return redirect('chat_detail', chat_id=chats.first().id)
+#     # If there's at least one chat, redirect to the most recent
+#     if chats.exists():
+#         return redirect('chat_detail', chat_id=chats.first().id)
 
-    # Otherwise just show the empty list page
-    return render(request, 'chat.html', {'chats': chats})
-
-
-@login_required
-def chat_new(request):
-    """Create a new chat and redirect to it"""
-    chat = Chat.objects.create(
-        user=request.user,
-        title="New Chat"
-    )
-
-    # Add system message to initialize the chat
-    ChatMessage.objects.create(
-        chat=chat,
-        role="system",
-        content="I'm your financial advisor assistant. I can help you find information about your clients using data from emails and HubSpot."
-    )
-
-    return redirect('chat_detail', chat_id=chat.id)
+#     # Otherwise just show the empty list page
+#     return render(request, 'chat.html', {'chats': chats})
 
 
-@login_required
-def chat_detail(request, chat_id):
-    """View for a specific chat with pagination"""
-    chat = get_object_or_404(Chat, id=chat_id, user=request.user)
-    chats = Chat.objects.filter(user=request.user)
+# @login_required
+# def chat_new(request):
+#     """Create a new chat and redirect to it"""
+#     chat = Chat.objects.create(
+#         user=request.user,
+#         title="New Chat"
+#     )
 
-    # Paginate messages
-    from django.core.paginator import Paginator
+#     # Add system message to initialize the chat
+#     ChatMessage.objects.create(
+#         chat=chat,
+#         role="system",
+#         content="I'm your financial advisor assistant. I can help you find information about your clients using data from emails and HubSpot."
+#     )
 
-    messages_list = chat.messages.all()
-    paginator = Paginator(messages_list, 25)  # 25 messages per page
-
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
-
-    return render(request, 'chat.html', {
-        'chat': chat,
-        'chats': chats,
-        'page_obj': page_obj
-    })
+#     return redirect('chat_detail', chat_id=chat.id)
 
 
-@login_required
-def chat_message(request, chat_id):
-    """Handle new messages in a chat"""
-    if request.method != 'POST':
-        return JsonResponse({'error': 'Method not allowed'}, status=405)
+# @login_required
+# def chat_detail(request, chat_id):
+#     """View for a specific chat with pagination"""
+#     chat = get_object_or_404(Chat, id=chat_id, user=request.user)
+#     chats = Chat.objects.filter(user=request.user)
 
-    chat = get_object_or_404(Chat, id=chat_id, user=request.user)
-    message_text = request.POST.get('message', '').strip()
+#     # Paginate messages
+#     from django.core.paginator import Paginator
 
-    if not message_text:
-        return JsonResponse({'error': 'Message cannot be empty'}, status=400)
+#     messages_list = chat.messages.all()
+#     paginator = Paginator(messages_list, 25)  # 25 messages per page
 
-    # Save user message
-    ChatMessage.objects.create(
-        chat=chat,
-        role='user',
-        content=message_text
-    )
+#     page_number = request.GET.get('page')
+#     page_obj = paginator.get_page(page_number)
 
-    # Update chat details
-    if chat.title == "New Chat":
-        # Use first few words of first message as title
-        words = message_text.split()
-        title = " ".join(words[:4])
-        if len(words) > 4:
-            title += "..."
-        chat.title = title
-        chat.save()
-
-    # Process message with RAG to get answer
-    try:
-        profile = UserProfile.objects.get(user=request.user)
-        if not profile.openai_api_key:
-            return JsonResponse({
-                'message': "Please add your OpenAI API key in settings to use the chat feature.",
-                'title': chat.title
-            })
-
-        # Initialize RAG service
-        rag_service = RAGService(api_key=profile.openai_api_key)
-
-        # Get email data for the user
-        email_data = []
-        contacts = HubspotContact.objects.filter(user=request.user)
-        for contact in contacts:
-            emails = EmailInteraction.objects.filter(contact=contact)
-            for email in emails:
-                email_data.append(email.serialize_for_vector_db())
-
-        # Process emails
-        if email_data:
-            rag_service.process_emails(email_data)
-
-        # Get chat history
-        history = [{
-            'role': msg.role,
-            'content': msg.content
-        } for msg in chat.messages.all()]
-
-        # Check if the message is asking about a specific person with ambiguous reference
-        contact_name_match = None
-        contact_id = None
-
-        # Check for contact references in the message
-        name_matches = extract_name_from_query(message_text)
-
-        if name_matches:
-            # Find matching contacts
-            potential_contacts = find_matching_contacts(
-                request.user, name_matches)
-
-            if len(potential_contacts) == 0:
-                answer = f"I couldn't find any contacts matching '{name_matches}'. Please try another name or check the spelling."
-            elif len(potential_contacts) == 1:
-                # Single match, use this contact's ID for filtering
-                contact_id = potential_contacts[0].contact_id
-                contact_name_match = potential_contacts[0].name
-                answer = rag_service.answer_question(
-                    message_text, history, contact_id)
-            else:
-                # Multiple matches, ask for clarification
-                contact_options = ", ".join(
-                    [f"{c.name} ({c.email})" for c in potential_contacts[:5]])
-                answer = f"I found multiple contacts matching '{name_matches}'. Which one do you mean? {contact_options}"
-
-                # Create a ChatMessage linking to potential contacts for follow-up
-                for contact in potential_contacts[:5]:
-                    chat_msg = ChatMessage.objects.create(
-                        chat=chat,
-                        role='system',
-                        content=f"Potential contact: {contact.name}",
-                        contact=HubspotContact.objects.get(
-                            user=request.user, contact_id=contact.contact_id)
-                    )
-        else:
-            # No specific person mentioned, process normally
-            answer = rag_service.answer_question(message_text, history)
-
-        # Save assistant response
-        ChatMessage.objects.create(
-            chat=chat,
-            role='assistant',
-            content=answer
-        )
-
-        # Touch chat to update last_modified
-        chat.save()
-
-        return JsonResponse({
-            'message': answer,
-            'title': chat.title
-        })
-
-    except Exception as e:
-        print(f"Error processing message: {str(e)}")
-
-        # Save error as assistant response
-        ChatMessage.objects.create(
-            chat=chat,
-            role='assistant',
-            content=f"I'm sorry, I encountered an error while processing your question. Please try again."
-        )
-
-        return JsonResponse({
-            'message': f"I'm sorry, I encountered an error while processing your question. Technical details: {str(e)}",
-            'title': chat.title
-        })
+#     return render(request, 'chat.html', {
+#         'chat': chat,
+#         'chats': chats,
+#         'page_obj': page_obj
+#     })
 
 
-def extract_name_from_query(query):
-    """
-    Extract potential person name from a query.
-    Returns the name or None if no clear name is found.
-    """
-    # Very simple extraction for common question patterns
-    # Could be improved with NLP in a production environment
-    query = query.lower()
+# @login_required
+# def chat_message(request, chat_id):
+#     """Handle new messages in a chat"""
+#     if request.method != 'POST':
+#         return JsonResponse({'error': 'Method not allowed'}, status=405)
 
-    # Patterns like "Why did [name] say..."
-    patterns = [
-        r"why did ([a-z]+) say",
-        r"what did ([a-z]+) say about",
-        r"when did ([a-z]+) mention",
-        r"how did ([a-z]+) feel about",
-        r"where is ([a-z]+) from"
-    ]
+#     chat = get_object_or_404(Chat, id=chat_id, user=request.user)
+#     message_text = request.POST.get('message', '').strip()
 
-    for pattern in patterns:
-        import re
-        match = re.search(pattern, query)
-        if match:
-            return match.group(1)
+#     if not message_text:
+#         return JsonResponse({'error': 'Message cannot be empty'}, status=400)
 
-    return None
+#     # Save user message
+#     ChatMessage.objects.create(
+#         chat=chat,
+#         role='user',
+#         content=message_text
+#     )
+
+#     # Update chat details
+#     if chat.title == "New Chat":
+#         # Use first few words of first message as title
+#         words = message_text.split()
+#         title = " ".join(words[:4])
+#         if len(words) > 4:
+#             title += "..."
+#         chat.title = title
+#         chat.save()
+
+#     # Process message with RAG to get answer
+#     try:
+#         profile = UserProfile.objects.get(user=request.user)
+#         if not profile.openai_api_key:
+#             return JsonResponse({
+#                 'message': "Please add your OpenAI API key in settings to use the chat feature.",
+#                 'title': chat.title
+#             })
+
+#         # Initialize RAG service
+#         rag_service = RAGService(api_key=profile.openai_api_key)
+
+#         # Get email data for the user
+#         email_data = []
+#         contacts = HubspotContact.objects.filter(user=request.user)
+#         for contact in contacts:
+#             emails = EmailInteraction.objects.filter(contact=contact)
+#             for email in emails:
+#                 email_data.append(email.serialize_for_vector_db())
+
+#         # Process emails
+#         if email_data:
+#             rag_service.process_emails(email_data)
+
+#         # Get chat history
+#         history = [{
+#             'role': msg.role,
+#             'content': msg.content
+#         } for msg in chat.messages.all()]
+
+#         # Check if the message is asking about a specific person with ambiguous reference
+#         contact_name_match = None
+#         contact_id = None
+
+#         # Check for contact references in the message
+#         name_matches = extract_name_from_query(message_text)
+
+#         if name_matches:
+#             # Find matching contacts
+#             potential_contacts = find_matching_contacts(
+#                 request.user, name_matches)
+
+#             if len(potential_contacts) == 0:
+#                 answer = f"I couldn't find any contacts matching '{name_matches}'. Please try another name or check the spelling."
+#             elif len(potential_contacts) == 1:
+#                 # Single match, use this contact's ID for filtering
+#                 contact_id = potential_contacts[0].contact_id
+#                 contact_name_match = potential_contacts[0].name
+#                 answer = rag_service.answer_question(
+#                     message_text, history, contact_id)
+#             else:
+#                 # Multiple matches, ask for clarification
+#                 contact_options = ", ".join(
+#                     [f"{c.name} ({c.email})" for c in potential_contacts[:5]])
+#                 answer = f"I found multiple contacts matching '{name_matches}'. Which one do you mean? {contact_options}"
+
+#                 # Create a ChatMessage linking to potential contacts for follow-up
+#                 for contact in potential_contacts[:5]:
+#                     chat_msg = ChatMessage.objects.create(
+#                         chat=chat,
+#                         role='system',
+#                         content=f"Potential contact: {contact.name}",
+#                         contact=HubspotContact.objects.get(
+#                             user=request.user, contact_id=contact.contact_id)
+#                     )
+#         else:
+#             # No specific person mentioned, process normally
+#             answer = rag_service.answer_question(message_text, history)
+
+#         # Save assistant response
+#         ChatMessage.objects.create(
+#             chat=chat,
+#             role='assistant',
+#             content=answer
+#         )
+
+#         # Touch chat to update last_modified
+#         chat.save()
+
+#         return JsonResponse({
+#             'message': answer,
+#             'title': chat.title
+#         })
+
+#     except Exception as e:
+#         print(f"Error processing message: {str(e)}")
+
+#         # Save error as assistant response
+#         ChatMessage.objects.create(
+#             chat=chat,
+#             role='assistant',
+#             content=f"I'm sorry, I encountered an error while processing your question. Please try again."
+#         )
+
+#         return JsonResponse({
+#             'message': f"I'm sorry, I encountered an error while processing your question. Technical details: {str(e)}",
+#             'title': chat.title
+#         })
 
 
-def find_matching_contacts(user, name_query):
-    """
-    Find contacts matching a name query.
-    Returns a list of matching contact objects.
-    """
-    # First try exact matches on first name
-    contacts = HubspotContact.objects.filter(
-        user=user,
-        name__icontains=name_query
-    )
+# def extract_name_from_query(query):
+#     """
+#     Extract potential person name from a query.
+#     Returns the name or None if no clear name is found.
+#     """
+#     # Very simple extraction for common question patterns
+#     # Could be improved with NLP in a production environment
+#     query = query.lower()
 
-    return contacts
+#     # Patterns like "Why did [name] say..."
+#     patterns = [
+#         r"why did ([a-z]+) say",
+#         r"what did ([a-z]+) say about",
+#         r"when did ([a-z]+) mention",
+#         r"how did ([a-z]+) feel about",
+#         r"where is ([a-z]+) from"
+#     ]
+
+#     for pattern in patterns:
+#         import re
+#         match = re.search(pattern, query)
+#         if match:
+#             return match.group(1)
+
+#     return None
+
+
+# def find_matching_contacts(user, name_query):
+#     """
+#     Find contacts matching a name query.
+#     Returns a list of matching contact objects.
+#     """
+#     # First try exact matches on first name
+#     contacts = HubspotContact.objects.filter(
+#         user=user,
+#         name__icontains=name_query
+#     )
+
+#     return contacts
 
 
 def google_callback(request):
