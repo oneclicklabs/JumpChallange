@@ -1325,7 +1325,7 @@ def webhook_receiver(request, source):
                     {"error": f"No matching user found for {user_email}"},
                     status=status.HTTP_404_NOT_FOUND
                 )
-        
+
         if user:            # Identify the event type from the payload
             event_type = 'default'
             if source == 'gmail':

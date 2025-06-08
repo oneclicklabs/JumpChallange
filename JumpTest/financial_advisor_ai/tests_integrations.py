@@ -21,30 +21,40 @@ class GmailIntegrationTests(TestCase):
         )
         # Get the automatically created profile and update it
         self.profile = UserProfile.objects.get(user=self.user)
-        self.profile.google_token = 'test_token'
+        self.profile.google_token = json.dumps({
+            'access_token': 'test_access_token',
+            'token_type': 'Bearer',            'expires_in': 3600
+        })
         self.profile.google_refresh_token = 'test_refresh_token'
         self.profile.save()
 
-    @patch('googleapiclient.discovery.build')
-    def test_get_user_gmail_service(self, mock_build):
+    @patch('financial_advisor_ai.integrations.gmail.build')
+    @patch('financial_advisor_ai.integrations.gmail.Credentials')
+    def test_get_user_gmail_service(self, mock_credentials, mock_build):
         """Test getting the Gmail service client"""
-        # Set up mock
+        # Set up mocks
         mock_service = MagicMock()
         mock_build.return_value = mock_service
+        mock_creds = MagicMock()
+        mock_credentials.return_value = mock_creds
 
         # Call the function
         service = gmail.get_user_gmail_service(self.user)
 
         # Assertions
         self.assertIsNotNone(service)
-        mock_build.assert_called_once_with('gmail', 'v1', credentials=None)
+        mock_credentials.assert_called_once()
+        mock_build.assert_called_once_with(
+            'gmail', 'v1', credentials=mock_creds)    @ patch('financial_advisor_ai.integrations.gmail.build')
 
-    @patch('googleapiclient.discovery.build')
-    def test_sync_emails(self, mock_build):
+    @patch('financial_advisor_ai.integrations.gmail.Credentials')
+    def test_sync_emails(self, mock_credentials, mock_build):
         """Test syncing emails from Gmail"""
         # Set up mocks
         mock_service = MagicMock()
         mock_build.return_value = mock_service
+        mock_creds = MagicMock()
+        mock_credentials.return_value = mock_creds
 
         # Mock the Gmail API response
         mock_messages = {
@@ -127,30 +137,41 @@ class CalendarIntegrationTests(TestCase):
         )
         # Get the automatically created profile and update it
         self.profile = UserProfile.objects.get(user=self.user)
-        self.profile.google_token = 'test_token'
+        self.profile.google_token = json.dumps({
+            'access_token': 'test_access_token',
+            'token_type': 'Bearer',
+            'expires_in': 3600
+        })
         self.profile.google_refresh_token = 'test_refresh_token'
         self.profile.save()
 
-    @patch('googleapiclient.discovery.build')
-    def test_get_user_calendar_service(self, mock_build):
+    @patch('financial_advisor_ai.integrations.calendar.build')
+    @patch('financial_advisor_ai.integrations.calendar.Credentials')
+    def test_get_user_calendar_service(self, mock_credentials, mock_build):
         """Test getting the Calendar service client"""
-        # Set up mock
+        # Set up mocks
         mock_service = MagicMock()
         mock_build.return_value = mock_service
+        mock_creds = MagicMock()
+        mock_credentials.return_value = mock_creds
 
         # Call the function
         service = calendar.get_user_calendar_service(self.user)
 
         # Assertions
         self.assertIsNotNone(service)
-        mock_build.assert_called_once_with('calendar', 'v3', credentials=None)
+        mock_credentials.assert_called_once()
+        mock_build.assert_called_once_with('calendar', 'v3', credentials=mock_creds)    @ patch(
+            'financial_advisor_ai.integrations.calendar.build')
 
-    @patch('googleapiclient.discovery.build')
-    def test_sync_calendar_events(self, mock_build):
+    @patch('financial_advisor_ai.integrations.calendar.Credentials')
+    def test_sync_calendar_events(self, mock_credentials, mock_build):
         """Test syncing events from Google Calendar"""
         # Set up mocks
         mock_service = MagicMock()
         mock_build.return_value = mock_service
+        mock_creds = MagicMock()
+        mock_credentials.return_value = mock_creds
 
         # Mock the Calendar API response
         now = datetime.utcnow()

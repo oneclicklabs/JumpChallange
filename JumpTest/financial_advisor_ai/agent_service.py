@@ -756,7 +756,7 @@ class AgentService:
 
         matching_instructions = []
         payload = json.loads(event.payload)
-        
+
         for instruction in instructions:
             # Check if this instruction has triggers for this event source
             if instruction.triggers:
@@ -783,11 +783,13 @@ class AgentService:
                     elif event.source == 'calendar':
                         # Check if the instruction is set up for calendar triggers
                         if any(trigger in instruction.triggers for trigger in ['calendar_created', 'calendar_updated']):
-                            matching_instructions.append(instruction)                    # For HubSpot events
+                            # For HubSpot events
+                            matching_instructions.append(instruction)
                     elif event.source == 'hubspot':
                         # Check if the instruction is set up for hubspot triggers
                         if any(trigger in instruction.triggers for trigger in ['hubspot_contact_created', 'hubspot_contact_updated']):
-                            matching_instructions.append(instruction)# Also check instructions without specific triggers but that mention the event source
+                            # Also check instructions without specific triggers but that mention the event source
+                            matching_instructions.append(instruction)
             # This allows for general instructions like "When I receive an email, do X"
             elif not instruction.triggers and instruction.instruction.lower().find(event.source) >= 0:
                 matching_instructions.append(instruction)

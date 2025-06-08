@@ -571,7 +571,7 @@ def create_hubspot_contact(user, contact_data):
                 phone=contact_data.get('phone'),
                 company=contact_data.get('company')
             )
-            
+
             # Return dictionary format expected by tests
             if contact_id:
                 return {

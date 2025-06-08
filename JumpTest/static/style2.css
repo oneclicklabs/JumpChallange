@@ -1,22 +1,36 @@
 /* Modern CSS Styles for Chat Application */
 :root {
-  --primary-color: #4CAF50;
-  --primary-hover: #45a049;
+  --primary-color: #4361ee;
+  --primary-hover: #3a56d4;
+  --success-color: #4caf50;
+  --warning-color: #ff9800;
+  --error-color: #f44336;
+  --info-color: #2196f3;
+  --text-color: #333333;
+  --text-light: #666666;
+  --text-lighter: #999999;
   --background-color: #f8f9fa;
+  --card-background: #ffffff;
   --container-bg: #ffffff;
   --border-color: #e0e0e0;
-  --text-color: #333333;
   --secondary-text: #666666;
   --time-text: #999999;
-  --shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-  --focus-shadow: 0 0 0 3px rgba(76, 175, 80, 0.25);
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.05);
+  --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+  --border-radius-sm: 4px;
+  --border-radius: 8px;
+  --border-radius-lg: 12px;
+  --transition: all 0.3s ease;
+  --font-main: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  --focus-shadow: 0 0 0 3px rgba(67, 97, 238, 0.25);
 }
 
 body {
   margin: 0 auto;
   max-width: 800px;
   padding: 20px;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-family: var(--font-main);
   background-color: var(--background-color);
   color: var(--text-color);
   line-height: 1.6;
@@ -46,7 +60,7 @@ h2 {
 
 .darker {
   border-color: var(--border-color);
-  background-color: #f1f1f1;
+  background-color: var(--background-color);
 }
 
 .container::after {
@@ -158,11 +172,11 @@ button:hover {
 
 /* Secondary button style */
 .btn-secondary {
-  background-color: #6c757d;
+  background-color: var(--text-light);
 }
 
 .btn-secondary:hover {
-  background-color: #5a6268;
+  background-color: var(--text-color);
 }
 
 /* Checkbox and radio button styles */
@@ -218,7 +232,7 @@ button:disabled {
 
 /* Input placeholder color */
 ::placeholder {
-  color: #aaa;
+  color: var(--text-lighter);
   opacity: 1;
 }
 
@@ -284,7 +298,7 @@ p.selected {
 .chat-sidebar {
   width: 25%;
   border-right: 1px solid var(--border-color);
-  background-color: #f8f9fa;
+  background-color: var(--background-color);
   display: flex;
   flex-direction: column;
 }
@@ -312,11 +326,11 @@ p.selected {
 }
 
 .chat-item:hover {
-  background-color: rgba(76, 175, 80, 0.1);
+  background-color: rgba(67, 97, 238, 0.1);
 }
 
 .chat-item.active {
-  background-color: rgba(76, 175, 80, 0.2);
+  background-color: rgba(67, 97, 238, 0.2);
 }
 
 .chat-item h4 {
@@ -337,7 +351,7 @@ p.selected {
   flex: 1;
   display: flex;
   flex-direction: column;
-  background-color: white;
+  background-color: var(--card-background);
 }
 
 .chat-messages {
@@ -358,18 +372,18 @@ p.selected {
 
 .message-container.user {
   align-self: flex-end;
-  background-color: #DCF8C6;
+  background-color: rgba(67, 97, 238, 0.1);
   border-bottom-right-radius: 5px;
 }
 
 .message-container.assistant {
   align-self: flex-start;
-  background-color: #F1F0F0;
+  background-color: var(--background-color);
   border-bottom-left-radius: 5px;
 }
 
 .message-container.error {
-  background-color: #ffcccc;
+  background-color: rgba(244, 67, 54, 0.1);
 }
 
 .message-content {
@@ -402,7 +416,7 @@ p.selected {
 .chat-input {
   border-top: 1px solid var(--border-color);
   padding: 10px 20px;
-  background-color: #f8f9fa;
+  background-color: var(--background-color);
 }
 
 .chat-input form {
@@ -489,7 +503,7 @@ p.selected {
 .typing-indicator span {
   height: 10px;
   width: 10px;
-  background-color: #b6b6b6;
+  background-color: var(--text-lighter);
   border-radius: 50%;
   display: inline-block;
   animation: pulse 1.5s infinite ease-in-out;

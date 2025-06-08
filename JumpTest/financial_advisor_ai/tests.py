@@ -617,7 +617,8 @@ class IntegrationTests(TestCase):
             content_type='application/json'
         )
 
-        self.assertEqual(webhook_response.status_code, 200)        # Check that a webhook event was created
+        # Check that a webhook event was created
+        self.assertEqual(webhook_response.status_code, 200)
         webhook_events = WebhookEvent.objects.filter(source='gmail')
         self.assertEqual(webhook_events.count(), 1)
 
