@@ -383,7 +383,7 @@ class WebhookTests(TestCase):
         cls.profile = UserProfile.objects.get(user=cls.user)
         cls.profile.openai_api_key = 'test_api_key'
         cls.profile.save()
-        
+
         # Set up the request factory
         cls.factory = RequestFactory()
 
@@ -420,22 +420,23 @@ class WebhookTests(TestCase):
             content_type='application/json'
         )
 
-        response = webhook_receiver(request, 'gmail')        # Check the response
+        response = webhook_receiver(
+            request, 'gmail')        # Check the response
         self.assertEqual(response.status_code, 200)
-        
+
         # Verify the mock was called correctly
         mock_process.assert_called_once()
-    
+
     def test_webhook_verification(self):
         """Test webhook verification requests"""
         # Test Gmail/Calendar verification
         challenge = 'test_challenge_string'
         url = reverse('webhook_receiver', args=['gmail'])
         url = f"{url}?hub.mode=subscribe&hub.challenge={challenge}&hub.verify_token=token"
-        
+
         request = self.factory.get(url)
         response = webhook_receiver(request, 'gmail')
-        
+
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data, challenge)
 

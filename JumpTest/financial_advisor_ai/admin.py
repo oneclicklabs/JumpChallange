@@ -10,9 +10,12 @@ admin.site.register(models.Chat)
 admin.site.register(models.ChatMessage)
 
 # Register agent-related models with custom admin classes
+
+
 @admin.register(models.AgentTask)
 class AgentTaskAdmin(admin.ModelAdmin):
-    list_display = ('title', 'user', 'status', 'priority', 'created_at', 'progress')
+    list_display = ('title', 'user', 'status',
+                    'priority', 'created_at', 'progress')
     list_filter = ('status', 'priority', 'user')
     search_fields = ('title', 'description')
     readonly_fields = ('created_at', 'updated_at')
@@ -20,7 +23,8 @@ class AgentTaskAdmin(admin.ModelAdmin):
 
 @admin.register(models.TaskStep)
 class TaskStepAdmin(admin.ModelAdmin):
-    list_display = ('task', 'step_number', 'description', 'status', 'created_at')
+    list_display = ('task', 'step_number', 'description',
+                    'status', 'created_at')
     list_filter = ('status', 'task__user')
     search_fields = ('description', 'task__title')
     readonly_fields = ('created_at', 'completed_at')
@@ -44,7 +48,8 @@ class AgentMemoryAdmin(admin.ModelAdmin):
 
 @admin.register(models.WebhookEvent)
 class WebhookEventAdmin(admin.ModelAdmin):
-    list_display = ('source', 'event_type', 'summary', 'user', 'status', 'received_at')
+    list_display = ('source', 'event_type', 'summary',
+                    'user', 'status', 'received_at')
     list_filter = ('source', 'status', 'user')
     search_fields = ('event_type', 'payload', 'summary')
     readonly_fields = ('received_at', 'processed_at')

@@ -13,7 +13,7 @@ from django.contrib.auth.models import User
 
 from .agent_service import register_tool
 from .models import (
-    HubspotContact, EmailInteraction, CalendarEvent, 
+    HubspotContact, EmailInteraction, CalendarEvent,
     AgentTask, AgentMemory
 )
 from .integrations.gmail import GmailAPI
@@ -23,6 +23,8 @@ from .integrations.hubspot import HubspotAPI
 logger = logging.getLogger(__name__)
 
 # Email tools
+
+
 @register_tool(
     name="find_contact",
     description="Find a contact by name or email address in the system",
@@ -41,19 +43,20 @@ def find_contact(user: User, query: str) -> Dict:
     """Find a contact by name or email address"""
     # Search by name (case-insensitive)
     name_matches = HubspotContact.objects.filter(
-        user=user, 
+        user=user,
         name__icontains=query
     )
-    
+
     # Search by email (case-insensitive)
     email_matches = HubspotContact.objects.filter(
         user=user,
         email__icontains=query
     )
-    
+
     # Combine results (avoiding duplicates)
-    contacts = list(name_matches) + [c for c in email_matches if c not in name_matches]
-    
+    contacts = list(name_matches) + \
+        [c for c in email_matches if c not in name_matches]
+
     # Format the results
     results = []
     for contact in contacts:
@@ -63,7 +66,7 @@ def find_contact(user: User, query: str) -> Dict:
             "email": contact.email,
             "last_interaction": contact.last_interaction.isoformat() if contact.last_interaction else None
         })
-        
+
     return {
         "found": len(results) > 0,
         "count": len(results),
@@ -93,12 +96,12 @@ def get_contact_emails(user: User, contact_id: str, limit: int = 5) -> Dict:
     """Get recent emails from a specific contact"""
     try:
         contact = HubspotContact.objects.get(user=user, contact_id=contact_id)
-        
+
         # Get emails sorted by most recent first
         emails = EmailInteraction.objects.filter(
             contact=contact
         ).order_by('-received_at')[:limit]
-        
+
         # Format the results
         results = []
         for email in emails:
@@ -109,7 +112,7 @@ def get_contact_emails(user: User, contact_id: str, limit: int = 5) -> Dict:
                 "content": email.full_content,
                 "date": email.received_at.isoformat()
             })
-            
+
         return {
             "contact_name": contact.name,
             "contact_email": contact.email,
@@ -117,7 +120,7 @@ def get_contact_emails(user: User, contact_id: str, limit: int = 5) -> Dict:
             "count": len(results),
             "emails": results
         }
-        
+
     except HubspotContact.DoesNotExist:
         return {
             "error": f"Contact with ID {contact_id} not found",
@@ -158,16 +161,16 @@ def send_email(user: User, contact_id: str, subject: str, body: str, html_body: 
     try:
         # Get the contact
         contact = HubspotContact.objects.get(user=user, contact_id=contact_id)
-        
+
         # Initialize Gmail API
         gmail_api = GmailAPI(user.id)
-        
+
         if not gmail_api.initialized:
             return {
                 "success": False,
                 "error": f"Gmail API not initialized: {gmail_api.error}"
             }
-        
+
         # Send email using Gmail API
         success = gmail_api.send_email(
             to=contact.email,
@@ -175,11 +178,11 @@ def send_email(user: User, contact_id: str, subject: str, body: str, html_body: 
             body=body,
             html_body=html_body
         )
-        
+
         if success:
             # Log the email sending
             logger.info(f"Email sent to {contact.name} <{contact.email}>")
-            
+
             # Record interaction (in a production system, you would do this via webhook)
             current_time = timezone.now()
             EmailInteraction.objects.create(
@@ -189,11 +192,11 @@ def send_email(user: User, contact_id: str, subject: str, body: str, html_body: 
                 received_at=current_time,
                 full_content=body
             )
-            
+
             # Update last interaction time
             contact.last_interaction = current_time
             contact.save()
-            
+
             return {
                 "success": True,
                 "to": contact.email,
@@ -206,7 +209,7 @@ def send_email(user: User, contact_id: str, subject: str, body: str, html_body: 
                 "success": False,
                 "error": "Failed to send email through Gmail API"
             }
-        
+
     except HubspotContact.DoesNotExist:
         return {
             "success": False,
@@ -247,7 +250,7 @@ def get_calendar_events(user: User, start_date: Optional[str] = None, end_date: 
     try:
         # Initialize Calendar API
         calendar_api = CalendarAPI(user.id)
-        
+
         if not calendar_api.initialized:
             return {
                 "error": f"Calendar API not initialized: {calendar_api.error}",
@@ -255,40 +258,41 @@ def get_calendar_events(user: User, start_date: Optional[str] = None, end_date: 
                 "count": 0,
                 "events": []
             }
-            
+
         # Set default dates if not provided
         if start_date:
             start = datetime.fromisoformat(start_date)
         else:
             start = datetime.now()
-            
+
         if end_date:
             end = datetime.fromisoformat(end_date)
         else:
             end = start + timedelta(days=7)
-            
+
         # Calculate days between start and end
         days = (end - start).days + 1
-        
+
         # Get events from Calendar API
         calendar_events = calendar_api.get_events(days=days)
-        
+
         # Filter events to the requested date range
         filtered_events = []
         for event in calendar_events:
             event_start = event.get('start_datetime')
             if 'T' in event_start:
-                event_start_dt = datetime.fromisoformat(event_start.replace('Z', '+00:00'))
+                event_start_dt = datetime.fromisoformat(
+                    event_start.replace('Z', '+00:00'))
             else:
                 event_start_dt = datetime.strptime(event_start, '%Y-%m-%d')
-                
+
             # Only include events that start after our requested start date
             if start <= event_start_dt <= end:
                 filtered_events.append(event)
-                
+
         # Limit results
         filtered_events = filtered_events[:limit]
-        
+
         # Format results
         results = []
         for event in filtered_events:
@@ -311,7 +315,7 @@ def get_calendar_events(user: User, start_date: Optional[str] = None, end_date: 
                                 "email": contact.email
                             }
                             break
-            
+
             # Format event
             results.append({
                 "id": event.get('id'),
@@ -323,16 +327,16 @@ def get_calendar_events(user: User, start_date: Optional[str] = None, end_date: 
                 "location": event.get('location', ''),
                 "attendee": attendee_info
             })
-            
+
         # Also sync events to database in the background
         calendar_api.sync_events_to_db()
-            
+
         return {
             "found": len(results) > 0,
             "count": len(results),
             "events": results
         }
-        
+
     except Exception as e:
         logger.error(f"Error fetching calendar events: {str(e)}")
         return {
@@ -366,46 +370,48 @@ def check_availability(user: User, start_date: str, end_date: str) -> Dict:
     try:
         # Initialize Calendar API
         calendar_api = CalendarAPI(user.id)
-        
+
         if not calendar_api.initialized:
             return {
                 "error": f"Calendar API not initialized: {calendar_api.error}",
                 "is_available": False
             }
-        
+
         # Parse dates
         start = datetime.fromisoformat(start_date)
         end = datetime.fromisoformat(end_date)
-        
+
         # Check availability with Calendar API
         is_available = calendar_api.check_availability(start, end)
-        
+
         if is_available:
             return {
                 "is_available": True,
                 "conflicts": []
             }
-            
+
         # If not available, get events for that time period to show conflicts
         days = 1  # Just get events for a single day
         events = calendar_api.get_events(days=days)
-        
+
         # Filter to just events that conflict with the requested time
         conflict_list = []
         for event in events:
             event_start = event.get('start_datetime')
             event_end = event.get('end_datetime')
-            
+
             if 'T' in event_start:
-                event_start_dt = datetime.fromisoformat(event_start.replace('Z', '+00:00'))
+                event_start_dt = datetime.fromisoformat(
+                    event_start.replace('Z', '+00:00'))
             else:
                 event_start_dt = datetime.strptime(event_start, '%Y-%m-%d')
-                
+
             if 'T' in event_end:
-                event_end_dt = datetime.fromisoformat(event_end.replace('Z', '+00:00'))
+                event_end_dt = datetime.fromisoformat(
+                    event_end.replace('Z', '+00:00'))
             else:
                 event_end_dt = datetime.strptime(event_end, '%Y-%m-%d')
-            
+
             # Check if this event conflicts with our requested time
             if event_start_dt < end and event_end_dt > start:
                 conflict_list.append({
@@ -413,12 +419,12 @@ def check_availability(user: User, start_date: str, end_date: str) -> Dict:
                     "start": event_start,
                     "end": event_end
                 })
-        
+
         return {
             "is_available": False,
             "conflicts": conflict_list
         }
-        
+
     except Exception as e:
         logger.error(f"Error checking availability: {str(e)}")
         return {
@@ -462,31 +468,32 @@ def create_calendar_event(user: User, title: str, start_time: str, end_time: str
     try:
         # Initialize Calendar API
         calendar_api = CalendarAPI(user.id)
-        
+
         if not calendar_api.initialized:
             return {
                 "success": False,
                 "error": f"Calendar API not initialized: {calendar_api.error}"
             }
-        
+
         # Parse times
         start = datetime.fromisoformat(start_time)
         end = datetime.fromisoformat(end_time)
-        
+
         # Check if contact exists if provided
         contact = None
         attendees = []
-        
+
         if contact_id:
             try:
-                contact = HubspotContact.objects.get(user=user, contact_id=contact_id)
+                contact = HubspotContact.objects.get(
+                    user=user, contact_id=contact_id)
                 attendees = [contact.email]
             except HubspotContact.DoesNotExist:
                 return {
                     "success": False,
                     "error": f"Contact with ID {contact_id} not found"
                 }
-        
+
         # Create event with Calendar API
         event_id = calendar_api.create_event(
             summary=title,
@@ -495,7 +502,7 @@ def create_calendar_event(user: User, title: str, start_time: str, end_time: str
             end_time=end,
             attendees=attendees if attendees else None
         )
-        
+
         if event_id:
             # Store in our database as well
             event = CalendarEvent.objects.create(
@@ -508,7 +515,7 @@ def create_calendar_event(user: User, title: str, start_time: str, end_time: str
                 status='confirmed',
                 contact=contact
             )
-            
+
             # If we have a HubSpot contact, create a meeting there too
             if contact and contact_id:
                 try:
@@ -523,7 +530,7 @@ def create_calendar_event(user: User, title: str, start_time: str, end_time: str
                         )
                 except Exception as e:
                     logger.error(f"Error creating HubSpot meeting: {str(e)}")
-            
+
             return {
                 "success": True,
                 "message": "Calendar event created successfully",
@@ -537,7 +544,7 @@ def create_calendar_event(user: User, title: str, start_time: str, end_time: str
                 "success": False,
                 "error": "Failed to create calendar event through API"
             }
-        
+
     except Exception as e:
         logger.error(f"Error creating calendar event: {str(e)}")
         return {
@@ -577,23 +584,24 @@ def create_hubspot_contact(user: User, name: str, email: str, phone: Optional[st
     """Create a new contact in HubSpot using HubSpot API"""
     try:
         # Check if contact with this email already exists
-        existing = HubspotContact.objects.filter(user=user, email=email).first()
+        existing = HubspotContact.objects.filter(
+            user=user, email=email).first()
         if existing:
             return {
                 "success": False,
                 "error": f"Contact with email {email} already exists",
                 "contact_id": existing.contact_id
             }
-        
+
         # Initialize HubSpot API
         hubspot_api = HubspotAPI(user.id)
-        
+
         if not hubspot_api.initialized:
             return {
                 "success": False,
                 "error": f"HubSpot API not initialized: {hubspot_api.error}"
             }
-        
+
         # Parse name into first/last name
         name_parts = name.split()
         if len(name_parts) > 1:
@@ -602,7 +610,7 @@ def create_hubspot_contact(user: User, name: str, email: str, phone: Optional[st
         else:
             first_name = name
             last_name = ""
-        
+
         # Create contact with HubSpot API
         contact_id = hubspot_api.create_contact(
             email=email,
@@ -611,11 +619,12 @@ def create_hubspot_contact(user: User, name: str, email: str, phone: Optional[st
             phone=phone,
             company=company
         )
-        
+
         if contact_id:
             # Get the newly created contact from database
-            contact = HubspotContact.objects.get(user=user, contact_id=contact_id)
-            
+            contact = HubspotContact.objects.get(
+                user=user, contact_id=contact_id)
+
             return {
                 "success": True,
                 "message": "Contact created successfully in HubSpot",
@@ -628,7 +637,7 @@ def create_hubspot_contact(user: User, name: str, email: str, phone: Optional[st
                 "success": False,
                 "error": "Failed to create contact through HubSpot API"
             }
-        
+
     except Exception as e:
         logger.error(f"Error creating HubSpot contact: {str(e)}")
         return {
@@ -660,24 +669,24 @@ def add_hubspot_note(user: User, contact_id: str, content: str) -> Dict:
     try:
         # Verify contact exists in our database
         contact = HubspotContact.objects.get(user=user, contact_id=contact_id)
-        
+
         # Initialize HubSpot API
         hubspot_api = HubspotAPI(user.id)
-        
+
         if not hubspot_api.initialized:
             return {
                 "success": False,
                 "error": f"HubSpot API not initialized: {hubspot_api.error}"
             }
-        
+
         # Add note through HubSpot API
         note_id = hubspot_api.add_note_to_contact(contact_id, content)
-        
+
         if note_id:
             # Update last interaction time in our database
             contact.last_interaction = timezone.now()
             contact.save()
-            
+
             return {
                 "success": True,
                 "message": f"Note added to contact {contact.name}",
@@ -690,7 +699,7 @@ def add_hubspot_note(user: User, contact_id: str, content: str) -> Dict:
                 "success": False,
                 "error": "Failed to add note through HubSpot API"
             }
-        
+
     except HubspotContact.DoesNotExist:
         return {
             "success": False,
@@ -739,16 +748,16 @@ def save_memory_tool(user: User, key: str, value: str, context: Optional[str] = 
                 'context': context or ''
             }
         )
-        
+
         action = "Created" if created else "Updated"
-        
+
         return {
             "success": True,
             "message": f"{action} memory with key '{key}'",
             "key": key,
             "value": value
         }
-        
+
     except Exception as e:
         return {
             "success": False,
@@ -789,7 +798,7 @@ def get_memory_tool(user: User, key: str) -> Dict:
                 "key": key,
                 "message": f"No memory found with key '{key}'"
             }
-            
+
     except Exception as e:
         return {
             "success": False,
@@ -815,15 +824,16 @@ def list_memories(user: User, pattern: Optional[str] = None) -> Dict:
     try:
         # Get all memories for the user
         memories = AgentMemory.objects.filter(user=user).order_by('key')
-        
+
         # Filter by pattern if provided
         if pattern:
             # Convert wildcard pattern to regex
             regex_pattern = pattern.replace('*', '.*')
-            filtered_memories = [m for m in memories if re.match(regex_pattern, m.key)]
+            filtered_memories = [
+                m for m in memories if re.match(regex_pattern, m.key)]
         else:
             filtered_memories = memories
-            
+
         # Format the results
         results = []
         for memory in filtered_memories:
@@ -832,12 +842,12 @@ def list_memories(user: User, pattern: Optional[str] = None) -> Dict:
                 "value": memory.value,
                 "updated_at": memory.updated_at.isoformat()
             })
-            
+
         return {
             "count": len(results),
             "memories": results
         }
-        
+
     except Exception as e:
         return {
             "success": False,
@@ -864,10 +874,10 @@ def complete_task_tool(user: User, result: str) -> Dict:
     """Mark the current task as completed"""
     # This tool implementation relies on the task_id being in the context
     # The AgentService will handle this when processing tool calls
-    
+
     # In a real implementation, we'd get the task_id from context
     # For now, we'll return a message to be handled by the agent service
-    
+
     return {
         "success": True,
         "message": "Task marked as completed",
@@ -893,7 +903,7 @@ def complete_task_tool(user: User, result: str) -> Dict:
 def add_task_step_tool(user: User, description: str) -> Dict:
     """Add a step to the current task"""
     # Similar to complete_task_tool, this relies on task_id from context
-    
+
     return {
         "success": True,
         "message": "Task step recorded",
@@ -919,7 +929,7 @@ def add_task_step_tool(user: User, description: str) -> Dict:
 def set_next_action_tool(user: User, next_action: str) -> Dict:
     """Set the next action for the current task"""
     # This will be handled by the agent service
-    
+
     return {
         "success": True,
         "message": "Next action set",

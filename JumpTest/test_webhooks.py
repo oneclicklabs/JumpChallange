@@ -6,9 +6,12 @@ import os
 import argparse
 from datetime import datetime, timedelta
 
-BASE_URL = "http://localhost:8000"  # Change if using a different port or ngrok URL
+# Change if using a different port or ngrok URL
+BASE_URL = "http://localhost:8000"
 
 # Helper function to print colored output
+
+
 def print_colored(text, color):
     colors = {
         'red': '\033[91m',
@@ -19,10 +22,11 @@ def print_colored(text, color):
     }
     print(f"{colors.get(color, '')}{text}{colors['end']}")
 
+
 def test_gmail_webhook(email_content=None):
     """Test a Gmail webhook"""
     print_colored("Testing Gmail webhook...", "blue")
-    
+
     if not email_content:
         email_content = {
             "id": "email-12345",
@@ -42,10 +46,11 @@ def test_gmail_webhook(email_content=None):
             "sizeEstimate": 2800,
             "historyId": "12345"
         }
-    
+
     # Base64 encode the email content
-    encoded_data = base64.b64encode(json.dumps(email_content).encode()).decode()
-    
+    encoded_data = base64.b64encode(
+        json.dumps(email_content).encode()).decode()
+
     # Create the Gmail Pub/Sub message format
     payload = {
         "message": {
@@ -55,19 +60,20 @@ def test_gmail_webhook(email_content=None):
         },
         "subscription": "projects/financial-advisor/subscriptions/gmail-notifications"
     }
-    
+
     response = requests.post(
         f"{BASE_URL}/webhooks/gmail/",
         headers={"Content-Type": "application/json"},
         json=payload
     )
-    
+
     print_response(response)
+
 
 def test_calendar_webhook(event_data=None):
     """Test a Google Calendar webhook"""
     print_colored("Testing Calendar webhook...", "blue")
-    
+
     if not event_data:
         # Default event data
         event_data = {
@@ -105,7 +111,7 @@ def test_calendar_webhook(event_data=None):
                 }
             ]
         }
-    
+
     # Calendar notification payload
     payload = {
         "kind": "calendar#notification",
@@ -116,19 +122,20 @@ def test_calendar_webhook(event_data=None):
         "channelExpiration": (datetime.now() + timedelta(days=30)).isoformat(),
         "event": event_data
     }
-    
+
     response = requests.post(
         f"{BASE_URL}/webhooks/calendar/",
         headers={"Content-Type": "application/json"},
         json=payload
     )
-    
+
     print_response(response)
+
 
 def test_hubspot_webhook(contact_data=None):
     """Test a HubSpot webhook"""
     print_colored("Testing HubSpot webhook...", "blue")
-    
+
     if not contact_data:
         # Default contact data
         contact_data = {
@@ -142,7 +149,7 @@ def test_hubspot_webhook(contact_data=None):
                 "lifecyclestage": "opportunity"
             }
         }
-    
+
     # HubSpot webhook payload for contact creation
     payload = {
         "subscriptionType": "contact.creation",
@@ -154,14 +161,15 @@ def test_hubspot_webhook(contact_data=None):
         "propertyValue": datetime.now().isoformat(),
         "object": contact_data
     }
-    
+
     response = requests.post(
         f"{BASE_URL}/webhooks/hubspot/",
         headers={"Content-Type": "application/json"},
         json=payload
     )
-    
+
     print_response(response)
+
 
 def print_response(response):
     """Print the response from the webhook endpoint"""
@@ -170,40 +178,44 @@ def print_response(response):
             print_colored(f"Status: {response.status_code} (Success)", "green")
         else:
             print_colored(f"Status: {response.status_code} (Error)", "red")
-        
+
         print("Response Headers:")
         for key, value in response.headers.items():
             print(f"  {key}: {value}")
-        
+
         print("\nResponse Body:")
         try:
             print(json.dumps(response.json(), indent=2))
         except:
             print(response.text)
-        
+
     except Exception as e:
         print_colored(f"Error processing response: {str(e)}", "red")
 
+
 def main():
-    parser = argparse.ArgumentParser(description="Test webhooks for Financial Advisor AI")
+    parser = argparse.ArgumentParser(
+        description="Test webhooks for Financial Advisor AI")
     parser.add_argument('webhook_type', choices=['gmail', 'calendar', 'hubspot', 'all'],
                         help='Type of webhook to test')
-    parser.add_argument('--url', help='Base URL for the webhook endpoints (default: http://localhost:8000)')
-    
+    parser.add_argument(
+        '--url', help='Base URL for the webhook endpoints (default: http://localhost:8000)')
+
     args = parser.parse_args()
-    
+
     if args.url:
         global BASE_URL
         BASE_URL = args.url
-    
+
     if args.webhook_type == 'gmail' or args.webhook_type == 'all':
         test_gmail_webhook()
-    
+
     if args.webhook_type == 'calendar' or args.webhook_type == 'all':
         test_calendar_webhook()
-    
+
     if args.webhook_type == 'hubspot' or args.webhook_type == 'all':
         test_hubspot_webhook()
+
 
 if __name__ == "__main__":
     main()

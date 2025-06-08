@@ -121,7 +121,8 @@ class AgentTask(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     due_date = models.DateTimeField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
-    is_suggestion = models.BooleanField(default=False, help_text='Whether this task was suggested by AI')
+    is_suggestion = models.BooleanField(
+        default=False, help_text='Whether this task was suggested by AI')
 
     # Related entities for the task
     contact = models.ForeignKey(

@@ -34,6 +34,7 @@ from .serializers import (
 from .utils import RAGService  # Assuming you have a utility for RAG processing
 from .agent_service import AgentService
 
+
 def google_login(request):
     """
     Initiates the Google OAuth2 login flow.
@@ -116,7 +117,7 @@ def dashboard(request):
             'contacts': contacts,
             'upcoming_events': upcoming_events,
         })
-
+        fetch_hubspot_contacts(request.user)  # Ensure contacts are fetched
     return render(request, 'dashboard.html', context)
 
 
@@ -235,7 +236,27 @@ def hubspot_callback(request):
     return redirect('dashboard')
 
 
+def refresh_hubspot_token(profile):
+    print("HubSpot token expired, attempting to refresh...")
+    refresh_url = 'https://api.hubapi.com/oauth/v1/token'
+    refresh_data = {
+        'grant_type': 'refresh_token',
+        'client_id': settings.HUBSPOT_CLIENT_ID,
+        'client_secret': settings.HUBSPOT_CLIENT_SECRET,
+        'refresh_token': profile.hubspot_refresh_token
+    }
+
+    refresh_response = requests.post(refresh_url, data=refresh_data)
+    if refresh_response.status_code == 200:
+        refresh_data = refresh_response.json()
+        profile.hubspot_token = refresh_data['access_token']
+        if 'refresh_token' in refresh_data:
+            profile.hubspot_refresh_token = refresh_data['refresh_token']
+            profile.save()
+
+
 def fetch_hubspot_contacts(user):
+    print(f"Fetching HubSpot contacts for user: {user.username}")
     try:
         profile = UserProfile.objects.get(user=user)
         headers = {
@@ -249,7 +270,17 @@ def fetch_hubspot_contacts(user):
             headers=headers,
             params={'limit': 100}
         )
-
+        # Check for 401 unauthorized - token expired
+        if response.status_code == 401:
+            refresh_hubspot_token(profile)
+            # Retry the original request with new token
+            headers['Authorization'] = f'Bearer {profile.hubspot_token}'
+            response = requests.get(
+                'https://api.hubapi.com/crm/v3/objects/contacts',
+                headers=headers,
+                params={'limit': 100}
+            )
+        print(f"HubSpot API response status: {response.content}")
         if response.status_code == 200:
             data = response.json()
             for contact in data.get('results', []):
@@ -1115,7 +1146,7 @@ def suggested_tasks(request):
     """Get AI-suggested tasks for the user"""
     agent_service = AgentService(request.user.id)
     tasks = agent_service.get_suggested_tasks()
-    
+
     serializer = AgentTaskSerializer(tasks, many=True)
     return Response(serializer.data)
 
@@ -1125,17 +1156,17 @@ def suggested_tasks(request):
 def generate_task_suggestions(request):
     """Generate new AI task suggestions"""
     agent_service = AgentService(request.user.id)
-    
+
     # Check if OpenAI API key is available
     if not agent_service.has_openai:
         return Response(
             {"error": "OpenAI API key is required to generate suggestions"},
             status=status.HTTP_400_BAD_REQUEST
         )
-    
+
     # Generate suggestions
     suggested_tasks = agent_service.analyze_and_suggest_tasks()
-    
+
     if suggested_tasks:
         serializer = AgentTaskSerializer(suggested_tasks, many=True)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -1151,10 +1182,10 @@ def generate_task_suggestions(request):
 def approve_task_suggestion(request, task_id):
     """Approve an AI-suggested task"""
     agent_service = AgentService(request.user.id)
-    
+
     # Approve the suggestion
     success = agent_service.approve_suggested_task(task_id)
-    
+
     if success:
         # Get the updated task
         task = AgentTask.objects.get(id=task_id, user=request.user)
@@ -1233,7 +1264,7 @@ def ongoing_instruction_detail(request, instruction_id):
 @api_view(['POST', 'GET'])
 def webhook_receiver(request, source):
     """Handle incoming webhooks from external services
-    
+
     This endpoint handles both verification requests (GET) and actual webhook events (POST)
     from Gmail, Google Calendar, and HubSpot.
     """
@@ -1243,22 +1274,23 @@ def webhook_receiver(request, source):
             {"error": f"Unsupported webhook source: {source}"},
             status=status.HTTP_400_BAD_REQUEST
         )
-        
+
     # Handle verification requests (GET)
     if request.method == 'GET':
         # For Gmail and Calendar verification
         if source in ['gmail', 'calendar'] and 'hub.challenge' in request.GET:
             challenge = request.GET.get('hub.challenge')
             return Response(challenge, content_type='text/plain')
-            
+
         # For HubSpot verification
         elif source == 'hubspot' and 'hub.verify' in request.GET:
             verify_token = request.GET.get('hub.verify')
-            expected_token = getattr(settings, 'HUBSPOT_WEBHOOK_VERIFY_TOKEN', None)
+            expected_token = getattr(
+                settings, 'HUBSPOT_WEBHOOK_VERIFY_TOKEN', None)
             if verify_token and expected_token and verify_token == expected_token:
                 return Response("OK", content_type='text/plain')
             return Response("Verification failed", status=status.HTTP_403_FORBIDDEN)
-            
+
         # Default verification response
         return Response("OK", content_type='text/plain')
 
@@ -1329,6 +1361,50 @@ def webhook_receiver(request, source):
         )
 
 
+def _process_gmail_webhook(payload):
+    """Process Gmail webhook data and extract relevant information
+
+    Args:
+        payload: The webhook payload from Gmail
+
+    Returns:
+        dict: Processed webhook data
+    """
+    import base64
+    import json
+
+    try:
+        # Gmail webhooks typically come with a message object containing base64 encoded data
+        if 'message' in payload and 'data' in payload['message']:
+            # Decode the base64 data
+            encoded_data = payload['message']['data']
+            decoded_data = base64.b64decode(encoded_data).decode('utf-8')
+
+            # Parse the JSON data
+            email_data = json.loads(decoded_data)
+
+            return {
+                'status': 'success',
+                'data': email_data,
+                'message_id': payload['message'].get('messageId'),
+                'type': 'gmail_notification'
+            }
+        else:
+            # If no encoded data, return the payload as-is
+            return {
+                'status': 'success',
+                'data': payload,
+                'type': 'gmail_webhook'
+            }
+
+    except Exception as e:
+        return {
+            'status': 'error',
+            'error': str(e),
+            'type': 'gmail_webhook'
+        }
+
+
 @login_required
 def agent_dashboard(request):
     """View for the agent task dashboard"""
@@ -1336,7 +1412,7 @@ def agent_dashboard(request):
     active_tasks = tasks.exclude(
         status__in=['completed', 'cancelled', 'failed', 'draft'])
     completed_tasks = tasks.filter(status='completed')
-    
+
     # Get suggestions (tasks with is_suggestion=True)
     suggested_tasks = tasks.filter(is_suggestion=True)
 
@@ -1358,20 +1434,21 @@ def agent_dashboard(request):
 def test_instruction(request, instruction_id):
     """Test an instruction with sample data to see if it matches and is actionable"""
     try:
-        instruction = OngoingInstruction.objects.get(id=instruction_id, user=request.user)
+        instruction = OngoingInstruction.objects.get(
+            id=instruction_id, user=request.user)
     except OngoingInstruction.DoesNotExist:
         return Response(
             {"error": "Instruction not found"},
             status=status.HTTP_404_NOT_FOUND
         )
-        
+
     # Get test data from request if provided
     test_data = request.data.get('test_data')
-    
+
     # Use the agent service to test the instruction
     agent_service = AgentService(request.user.id)
     result = agent_service.test_instruction(instruction_id, test_data)
-    
+
     return Response(result)
 
 
@@ -1384,33 +1461,33 @@ def task_steps(request, task_id):
         task = AgentTask.objects.get(id=task_id, user=request.user)
     except AgentTask.DoesNotExist:
         return Response(status=status.HTTP_404_NOT_FOUND)
-        
+
     # Initialize agent service
     agent_service = AgentService(request.user.id)
-    
+
     if request.method == 'GET':
         steps = TaskStep.objects.filter(task=task).order_by('step_number')
         serializer = TaskStepSerializer(steps, many=True)
         return Response(serializer.data)
-        
+
     elif request.method == 'POST':
         # Extract data
         description = request.data.get('description', '')
         step_number = request.data.get('step_number')
-        
+
         if not description:
             return Response(
                 {"error": "Description is required"},
                 status=status.HTTP_400_BAD_REQUEST
             )
-            
+
         # Create new step using agent service
         step = agent_service.add_task_step(
             task_id=task_id,
             description=description,
             step_number=step_number
         )
-        
+
         if step:
             serializer = TaskStepSerializer(step)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -1426,13 +1503,14 @@ def task_steps(request, task_id):
 def complete_step(request, task_id, step_number):
     """Mark a step as completed"""
     result = request.data.get('result', '')
-    
+
     agent_service = AgentService(request.user.id)
     success = agent_service.complete_task_step(task_id, step_number, result)
-    
+
     if success:
         try:
-            step = TaskStep.objects.get(task__id=task_id, step_number=step_number)
+            step = TaskStep.objects.get(
+                task__id=task_id, step_number=step_number)
             serializer = TaskStepSerializer(step)
             return Response(serializer.data)
         except TaskStep.DoesNotExist:

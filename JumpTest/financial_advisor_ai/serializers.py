@@ -7,7 +7,7 @@ from .models import AgentTask, TaskStep, OngoingInstruction, WebhookEvent
 
 class TaskStepSerializer(serializers.ModelSerializer):
     """Serializer for TaskStep model"""
-    
+
     class Meta:
         model = TaskStep
         fields = [
@@ -19,7 +19,7 @@ class TaskStepSerializer(serializers.ModelSerializer):
 class AgentTaskSerializer(serializers.ModelSerializer):
     """Serializer for AgentTask model"""
     steps = TaskStepSerializer(many=True, read_only=True)
-    
+
     class Meta:
         model = AgentTask
         fields = [
@@ -27,12 +27,13 @@ class AgentTaskSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at', 'due_date', 'completed_at',
             'progress', 'steps', 'next_action'
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at', 'steps', 'progress']
+        read_only_fields = ['id', 'created_at',
+                            'updated_at', 'steps', 'progress']
 
 
 class AgentTaskCreateSerializer(serializers.ModelSerializer):
     """Serializer for creating a new task"""
-    
+
     class Meta:
         model = AgentTask
         fields = ['title', 'description', 'priority', 'due_date']
@@ -40,7 +41,7 @@ class AgentTaskCreateSerializer(serializers.ModelSerializer):
 
 class OngoingInstructionSerializer(serializers.ModelSerializer):
     """Serializer for OngoingInstruction model"""
-    
+
     class Meta:
         model = OngoingInstruction
         fields = [
@@ -52,7 +53,7 @@ class OngoingInstructionSerializer(serializers.ModelSerializer):
 
 class WebhookEventSerializer(serializers.ModelSerializer):
     """Serializer for WebhookEvent model"""
-    
+
     class Meta:
         model = WebhookEvent
         fields = [

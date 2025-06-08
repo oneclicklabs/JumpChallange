@@ -903,15 +903,13 @@ class AgentService:
         try:
             # Parse the instruction to extract trigger conditions
             trigger_conditions = self._parse_instruction_triggers(
-                instruction_text)
-
-            # Create instruction object
+                instruction_text)            # Create instruction object
             instruction = OngoingInstruction.objects.create(
                 user=self.user,
                 name=name,
                 instruction=instruction_text,
                 triggers=triggers or [],
-                trigger_conditions=trigger_conditions,
+                conditions=str(trigger_conditions),
                 status='active'
             )
 
@@ -1093,26 +1091,26 @@ class AgentService:
 
     def analyze_and_suggest_tasks(self):
         """Analyze user data and suggest proactive tasks
-        
+
         This method analyzes emails, calendar events, and contacts to identify
         potential tasks that would be valuable for the financial advisor.
-        
+
         Returns:
             List of suggested tasks
         """
         if not self.has_openai:
             logger.warning("Cannot suggest tasks without OpenAI API key")
             return []
-            
+
         try:
             from openai import OpenAI
-            
+
             # Initialize OpenAI client
             client = OpenAI(api_key=self.openai_api_key)
-            
+
             # Gather data for analysis
             data = self._gather_analysis_data()
-            
+
             # Prepare a prompt for the LLM
             system_message = {
                 "role": "system",
@@ -1133,7 +1131,7 @@ class AgentService:
                 title, description, priority, due_date (ISO format or null)
                 """
             }
-            
+
             user_message = {
                 "role": "user",
                 "content": f"""
@@ -1153,7 +1151,7 @@ class AgentService:
                 Based on this data, suggest up to 3 tasks the financial advisor should consider.
                 """
             }
-            
+
             # Call OpenAI to generate suggestions
             response = client.chat.completions.create(
                 model="gpt-4-turbo",
@@ -1161,7 +1159,7 @@ class AgentService:
                 response_format={"type": "json_object"},
                 temperature=0.7
             )
-              # Parse the response
+            # Parse the response
             content = response.choices[0].message.content
             try:
                 # Try to parse as an object with 'tasks' field first
@@ -1172,7 +1170,7 @@ class AgentService:
             except json.JSONDecodeError:
                 logger.error(f"Failed to parse LLM response: {content}")
                 return []
-            
+
             # Create draft tasks from suggestions
             created_tasks = []
             for task in suggested_tasks:
@@ -1180,10 +1178,12 @@ class AgentService:
                 due_date = None
                 if task.get('due_date'):
                     try:
-                        due_date = datetime.fromisoformat(task['due_date'].replace('Z', '+00:00'))
+                        due_date = datetime.fromisoformat(
+                            task['due_date'].replace('Z', '+00:00'))
                     except (ValueError, TypeError):
-                        logger.warning(f"Invalid due_date format: {task.get('due_date')}")
-                
+                        logger.warning(
+                            f"Invalid due_date format: {task.get('due_date')}")
+
                 new_task = AgentTask.objects.create(
                     user=self.user,
                     title=task['title'],
@@ -1194,18 +1194,19 @@ class AgentService:
                     is_suggestion=True  # Mark as AI suggested
                 )
                 created_tasks.append(new_task)
-                
-            logger.info(f"Created {len(created_tasks)} task suggestions for user {self.user.username}")
+
+            logger.info(
+                f"Created {len(created_tasks)} task suggestions for user {self.user.username}")
             return created_tasks
-            
+
         except Exception as e:
             logger.error(f"Error generating task suggestions: {str(e)}")
             logger.error(traceback.format_exc())
             return []
-            
+
     def _gather_analysis_data(self):
         """Gather data for analysis to suggest tasks
-        
+
         Returns:
             Dictionary of data for analysis
         """
@@ -1214,14 +1215,14 @@ class AgentService:
             'recent_emails': '',
             'inactive_contacts': ''
         }
-        
+
         # Get upcoming calendar events
         try:
             events = CalendarEvent.objects.filter(
-                user=self.user, 
+                user=self.user,
                 start_time__gte=timezone.now()
             ).order_by('start_time')[:10]
-            
+
             if events:
                 events_text = []
                 for event in events:
@@ -1232,13 +1233,13 @@ class AgentService:
                 data['calendar_events'] = "\n".join(events_text)
         except Exception as e:
             logger.warning(f"Error getting calendar events: {str(e)}")
-            
+
         # Get recent emails
         try:
             emails = EmailInteraction.objects.filter(
                 contact__user=self.user
             ).order_by('-received_at')[:20]
-            
+
             if emails:
                 emails_text = []
                 for email in emails:
@@ -1250,14 +1251,14 @@ class AgentService:
                 data['recent_emails'] = "\n\n".join(emails_text)
         except Exception as e:
             logger.warning(f"Error getting recent emails: {str(e)}")
-            
+
         # Get contacts without recent interactions
         try:
             from django.db.models import Q, Max
-            
+
             # Get contacts with no recent emails in the last 30 days
             thirty_days_ago = timezone.now() - timezone.timedelta(days=30)
-            
+
             contacts = HubspotContact.objects.filter(
                 user=self.user
             ).annotate(
@@ -1265,50 +1266,55 @@ class AgentService:
             ).filter(
                 Q(last_email__lt=thirty_days_ago) | Q(last_email__isnull=True)
             )[:10]
-            
+
             if contacts:
                 contacts_text = []
                 for contact in contacts:
-                    last_contact = "Never" if not contact.last_interaction else contact.last_interaction.strftime('%Y-%m-%d')
-                    contacts_text.append(f"{contact.name} ({contact.email}) - Last contact: {last_contact}")
+                    last_contact = "Never" if not contact.last_interaction else contact.last_interaction.strftime(
+                        '%Y-%m-%d')
+                    contacts_text.append(
+                        f"{contact.name} ({contact.email}) - Last contact: {last_contact}")
                 data['inactive_contacts'] = "\n".join(contacts_text)
         except Exception as e:
             logger.warning(f"Error getting inactive contacts: {str(e)}")
-            
+
         return data
-    
+
     def approve_suggested_task(self, task_id: int) -> bool:
         """Approve an AI-suggested task
-        
+
         This method converts a suggested task (draft) into an active task.
-        
+
         Args:
             task_id: The ID of the suggested task to approve
-            
+
         Returns:
             bool: Whether the task was successfully approved
         """
         try:
-            task = AgentTask.objects.get(id=task_id, user=self.user, is_suggestion=True)
-            
+            task = AgentTask.objects.get(
+                id=task_id, user=self.user, is_suggestion=True)
+
             # Convert from suggestion to actual task
             task.is_suggestion = False
             task.status = 'pending'  # Change from draft to pending
             task.save()
-            
-            logger.info(f"Approved suggested task {task_id} for user {self.user.username}")
+
+            logger.info(
+                f"Approved suggested task {task_id} for user {self.user.username}")
             return True
-            
+
         except AgentTask.DoesNotExist:
-            logger.warning(f"Suggested task {task_id} not found for user {self.user.username}")
+            logger.warning(
+                f"Suggested task {task_id} not found for user {self.user.username}")
             return False
         except Exception as e:
             logger.error(f"Error approving suggested task {task_id}: {str(e)}")
             return False
-            
+
     def get_suggested_tasks(self) -> list:
         """Get all AI-suggested tasks for the user
-        
+
         Returns:
             List of suggested tasks
         """
@@ -1317,3 +1323,219 @@ class AgentService:
         except Exception as e:
             logger.error(f"Error getting suggested tasks: {str(e)}")
             return []
+
+    def test_instruction(self, instruction_id: int, test_data: Optional[Dict] = None) -> Dict:
+        """Test an instruction to analyze its clarity, actionability, and trigger conditions
+
+        Args:
+            instruction_id: ID of the instruction to test
+            test_data: Optional test data to use for testing
+
+        Returns:
+            Dictionary containing test results and analysis
+        """
+        try:
+            # Get the instruction
+            instruction = OngoingInstruction.objects.get(
+                id=instruction_id, user=self.user)
+        except OngoingInstruction.DoesNotExist:
+            return {
+                'error': 'Instruction not found',
+                'matches': False,
+                'analysis': {
+                    'is_clear': False,
+                    'is_actionable': False,
+                    'feedback': 'Instruction not found'
+                }
+            }
+
+        # Parse the instruction to extract trigger conditions
+        trigger_conditions = self._parse_instruction_triggers(
+            instruction.instruction)
+
+        # Determine primary source based on trigger conditions
+        primary_source = None
+        if trigger_conditions.get('sources'):
+            primary_source = trigger_conditions['sources'][0]
+
+        # Analyze the instruction text for clarity and actionability
+        analysis = self._analyze_instruction_quality(instruction.instruction)
+
+        # Generate sample test data if not provided
+        if not test_data:
+            test_data = self._generate_test_data_for_instruction(
+                instruction, trigger_conditions)
+
+        # Check if instruction matches the test data
+        matches = self._test_instruction_match(
+            instruction, trigger_conditions, test_data)
+
+        return {
+            'matches': matches,
+            'source': primary_source,
+            'test_data': test_data,
+            'trigger_conditions': trigger_conditions,
+            'analysis': analysis
+        }
+
+    def _analyze_instruction_quality(self, instruction_text: str) -> Dict:
+        """Analyze the quality of an instruction for clarity and actionability
+
+        Args:
+            instruction_text: The instruction text to analyze
+
+        Returns:
+            Dictionary with analysis results
+        """
+        analysis = {
+            'is_clear': True,
+            'is_actionable': True,
+            'feedback': [],
+            'suggestions': []
+        }
+
+        text = instruction_text.lower().strip()
+
+        # Check for clarity indicators
+        clarity_issues = []
+
+        # Check if instruction is too vague
+        vague_words = ['something', 'anything', 'somehow', 'maybe', 'perhaps']
+        if any(word in text for word in vague_words):
+            clarity_issues.append(
+                "Instruction contains vague terms that may be unclear")
+
+        # Check if instruction is too short
+        if len(text) < 10:
+            clarity_issues.append(
+                "Instruction is very short and may lack detail")
+
+        # Check if instruction has clear action words
+        action_words = ['create', 'send', 'schedule', 'update',
+                        'delete', 'contact', 'call', 'email', 'remind', 'notify']
+        if not any(word in text for word in action_words):
+            clarity_issues.append("Instruction lacks clear action words")
+
+        # Check for actionability indicators
+        actionability_issues = []
+
+        # Check if instruction has conditional structure
+        conditional_words = ['when', 'if', 'after', 'before', 'whenever']
+        if not any(word in text for word in conditional_words):
+            actionability_issues.append(
+                "Instruction should specify when it should be triggered")
+
+        # Check if instruction specifies what to do
+        if 'do' not in text and 'create' not in text and 'send' not in text and 'schedule' not in text:
+            actionability_issues.append(
+                "Instruction should clearly specify what action to take")
+
+        # Update analysis based on issues found
+        if clarity_issues:
+            analysis['is_clear'] = False
+            analysis['feedback'].extend(clarity_issues)
+
+        if actionability_issues:
+            analysis['is_actionable'] = False
+            analysis['feedback'].extend(actionability_issues)
+
+        # Generate positive feedback if no issues
+        if not clarity_issues and not actionability_issues:
+            analysis['feedback'] = ["Instruction is clear and actionable"]
+
+        # Combine feedback into a single string
+        if isinstance(analysis['feedback'], list):
+            analysis['feedback'] = '. '.join(analysis['feedback'])
+
+        return analysis
+
+    def _generate_test_data_for_instruction(self, instruction: OngoingInstruction, trigger_conditions: Dict) -> Dict:
+        """Generate sample test data for testing an instruction
+
+        Args:
+            instruction: The instruction object
+            trigger_conditions: Parsed trigger conditions
+
+        Returns:
+            Dictionary with sample test data
+        """
+        test_data = {
+            'instruction_id': instruction.id,
+            'instruction_name': instruction.name,
+            'instruction_text': instruction.instruction
+        }
+
+        # Generate test data based on primary source
+        sources = trigger_conditions.get('sources', [])
+
+        if 'gmail' in sources:
+            test_data.update({
+                'email_from': 'test@example.com',
+                'email_subject': 'Test Email Subject',
+                'email_body': 'This is a test email body for testing the instruction.',
+                'event_type': 'email_received'
+            })
+
+        if 'calendar' in sources:
+            test_data.update({
+                'event_title': 'Test Calendar Event',
+                'event_start': timezone.now().isoformat(),
+                'event_attendees': ['attendee@example.com'],
+                'event_type': 'calendar_event_created'
+            })
+
+        if 'hubspot' in sources:
+            test_data.update({
+                'contact_name': 'Test Contact',
+                'contact_email': 'contact@example.com',
+                'object_type': 'contact',
+                'event_type': 'hubspot_contact_created'
+            })
+
+        return test_data
+
+    def _test_instruction_match(self, instruction: OngoingInstruction, trigger_conditions: Dict, test_data: Dict) -> bool:
+        """Test if an instruction would match given test data
+
+        Args:
+            instruction: The instruction object
+            trigger_conditions: Parsed trigger conditions
+            test_data: Test data to match against
+
+        Returns:
+            Boolean indicating if the instruction matches
+        """
+        # If no trigger conditions, consider it a basic match
+        if not trigger_conditions.get('sources'):
+            return True
+
+        # Check if test data event type matches instruction sources
+        event_type = test_data.get('event_type', '')
+        sources = trigger_conditions.get('sources', [])
+
+        # Simple matching logic
+        if 'email' in event_type and 'gmail' in sources:
+            return True
+        if 'calendar' in event_type and 'calendar' in sources:
+            return True
+        if 'hubspot' in event_type and 'hubspot' in sources:
+            return True
+
+        # Check for more specific conditions if available
+        if 'gmail' in sources and trigger_conditions.get('email_conditions'):
+            email_conditions = trigger_conditions['email_conditions']
+
+            # Check from patterns
+            if email_conditions.get('from_patterns'):
+                email_from = test_data.get('email_from', '')
+                if any(pattern in email_from for pattern in email_conditions['from_patterns']):
+                    return True
+
+            # Check subject patterns
+            if email_conditions.get('subject_patterns'):
+                email_subject = test_data.get('email_subject', '')
+                if any(pattern in email_subject for pattern in email_conditions['subject_patterns']):
+                    return True
+
+        # Default to True if basic source matching succeeds
+        return len(sources) > 0
