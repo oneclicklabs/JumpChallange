@@ -21,6 +21,7 @@ from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
+from openai import OpenAI
 
 from .models import (
     UserProfile, HubspotContact, EmailInteraction, CalendarEvent, Chat, ChatMessage,
@@ -895,8 +896,11 @@ def chat_message(request, chat_id):
         contact_id = None
 
         # Check for contact references in the message
-        name_matches = extract_name_from_query(message_text)
-
+        # name_matches = extract_name_from_query2(message_text)
+        # print(f"Extracted name matches2: {name_matches}")
+        name_matches = extract_name_from_query(
+            message_text, history, profile.openai_api_key)
+        print(f"Extracted name matches: {name_matches}")
         if name_matches:
             # Find matching contacts
             potential_contacts = find_matching_contacts(
@@ -960,7 +964,35 @@ def chat_message(request, chat_id):
         })
 
 
-def extract_name_from_query(query):
+def extract_name_from_query(query, history, openai_api_key):
+
+    client = OpenAI()
+    message_text = 'extract the name or names of pepole refred to in this following message' + \
+        query+' if there is no names in that then use this history of messages' + str(history) + \
+        ' your reply should be just the list of names separated by commas'
+    # answer = rag_service.answer_question(message_text, history)
+    response = client.responses.create(
+        model="gpt-4.1-mini",
+        input=message_text
+    )
+
+    answer = response.output_text.lower()
+    # Check if we received any names
+    if not answer:
+        return None
+
+    # Remove any whitespace and split by commas
+    names = [name.strip() for name in answer.split(',') if name.strip()]
+
+    # Return None if no valid names found
+    if not names:
+        return None
+
+    # Return first name found (or could return all names if needed)
+    return names
+
+
+def extract_name_from_query2(query):
     """
     Extract potential person name from a query with improved pattern matching.
     Returns the name or None if no clear name is found.
