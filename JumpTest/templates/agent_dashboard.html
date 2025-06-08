@@ -1,0 +1,1129 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Financial Advisor AI - Agent Dashboard</title>
+    <link rel="stylesheet" href="{% static 'style.css' %}">
+    <link rel="stylesheet" href="{% static 'style2.css' %}">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>    <style>
+        /* Task Cards */
+        .task-card {
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .task-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        .task-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .task-title {
+            font-weight: 600;
+            font-size: 18px;
+            margin: 0;
+        }
+        
+        /* Status Badges */
+        .status-badge {
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+            display: inline-block;
+        }
+        
+        .status-pending {
+            background-color: #FEF8E7;
+            color: #B7791F;
+        }
+        
+        .status-in_progress {
+            background-color: #EBF8FF;
+            color: #3182CE;
+        }
+        
+        .status-waiting_response {
+            background-color: #F0FFF4;
+            color: #38A169;
+        }
+        
+        .status-completed {
+            background-color: #E6FFFA;
+            color: #319795;
+        }
+        
+        .status-failed {
+            background-color: #FFF5F5;
+            color: #E53E3E;
+        }
+        
+        .task-description {
+            margin-bottom: 15px;
+            color: #4A5568;
+        }
+        
+        .task-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-top: 1px solid #E2E8F0;
+            padding-top: 15px;
+            margin-top: 15px;
+        }
+        
+        .task-date {
+            color: #718096;
+            font-size: 14px;
+        }
+        
+        .task-priority {
+            font-size: 14px;
+            font-weight: 500;
+        }
+        
+        .priority-high {
+            color: #E53E3E;
+        }
+        
+        .priority-medium {
+            color: #DD6B20;
+        }
+        
+        .priority-low {
+            color: #38A169;
+        }
+        
+        .progress-bar {
+            height: 6px;
+            background-color: #EDF2F7;
+            border-radius: 3px;
+            margin: 15px 0;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background-color: #4299E1;
+            border-radius: 3px;
+        }
+        
+        .task-actions {
+            margin-top: 15px;
+        }
+        
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 14px;
+            border-radius: 4px;
+        }
+        
+        .instruction-card {
+            background-color: #F7FAFC;
+            border-left: 4px solid #4299E1;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+        }
+        
+        .instruction-name {
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+        
+        .instruction-text {
+            color: #4A5568;
+            font-style: italic;
+        }
+        
+        .section-title {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .completed-tasks {
+            margin-top: 40px;
+        }
+        
+        /* Add styles for test instruction modal */
+        .instruction-actions {
+            margin-top: 10px;
+            display: flex;
+            gap: 10px;
+        }
+        
+        .instruction-preview {
+            background-color: #F8FAFC;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+        
+        .spinner {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-radius: 50%;
+            border-top-color: #3182CE;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+        
+        .test-result-item {
+            margin-bottom: 15px;
+            padding: 10px;
+            border-radius: 6px;
+        }
+        
+        .test-success {
+            background-color: #E6FFFA;
+            border-left: 4px solid #38B2AC;
+        }
+        
+        .test-warning {
+            background-color: #FFFAF0;
+            border-left: 4px solid #DD6B20;
+        }
+        
+        .test-error {
+            background-color: #FFF5F5;
+            border-left: 4px solid #E53E3E;
+        }
+        
+        .test-info {
+            background-color: #EBF8FF;
+            border-left: 4px solid #3182CE;
+        }
+        
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            padding-top: 15px;
+            border-top: 1px solid #E2E8F0;
+        }
+        
+        /* Styles for suggested tasks */
+        .suggested-task {
+            border-left: 4px solid #805AD5;
+            background-color: #FAF5FF;
+        }
+        
+        .status-draft {
+            background-color: #FAF5FF;
+            color: #805AD5;
+        }
+        
+        #suggestion-loading {
+            text-align: center;
+            padding: 20px;
+            display: none;
+        }
+        
+        .suggestion-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .btn-approve-suggestion {
+            background-color: #48BB78;
+            color: white;
+            border: none;
+        }
+        
+        .btn-reject-suggestion {
+            background-color: #F56565;
+            color: white;
+            border: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Financial Advisor AI - Agent Dashboard</h1>
+            <div class="user-info">
+                <span>Welcome, {{ request.user.first_name|default:request.user.username }}</span>
+                <a href="{% url 'dashboard' %}">Main Dashboard</a>
+                <a href="{% url 'chat_list' %}">Chat</a>
+                <a href="{% url 'user_settings' %}">Settings</a>
+                <a href="{% url 'logout' %}">Logout</a>
+            </div>
+        </header>
+        
+        <main>
+            {% if messages %}
+            <div class="messages">
+                {% for message in messages %}
+                <div class="message {{ message.tags }}">
+                    {{ message }}
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            
+            <div class="section">
+                <div class="section-title">
+                    <h2>Active Instructions</h2>
+                    <button id="btn-new-instruction" class="btn-action btn-sm">Add New Instruction</button>
+                </div>
+                
+                <div class="instructions-container">
+                    {% for instruction in instructions %}                    <div class="instruction-card" data-id="{{ instruction.id }}">
+                        <div class="instruction-name">{{ instruction.name }}</div>
+                        <div class="instruction-text">"{{ instruction.instruction }}"</div>
+                        <div class="instruction-triggers">
+                            Triggers: 
+                            {% for trigger in instruction.triggers %}
+                            <span class="trigger-badge">{{ trigger }}</span>
+                            {% empty %}
+                            <span class="trigger-badge">Auto-detected</span>
+                            {% endfor %}
+                        </div>
+                        <div class="instruction-actions">
+                            <button class="btn-test-instruction btn-sm">Test</button>
+                            <button class="btn-edit-instruction btn-sm">Edit</button>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="empty-state">
+                        <p>No active instructions. Add one to get started.</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            
+            <div class="section">
+                <div class="section-title">
+                    <h2>Active Tasks</h2>
+                    <button id="btn-new-task" class="btn-action btn-sm">Create New Task</button>
+                </div>
+                
+                <div class="tasks-container">
+                    {% for task in active_tasks %}
+                    <div class="task-card">
+                        <div class="task-header">
+                            <h3 class="task-title">{{ task.title }}</h3>
+                            <span class="status-badge status-{{ task.status }}">{{ task.get_status_display }}</span>
+                        </div>
+                        
+                        <div class="task-description">{{ task.description }}</div>
+                        
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: {{ task.progress }}%"></div>
+                        </div>
+                        
+                        {% if task.next_action %}
+                        <div class="next-action">
+                            <strong>Next action:</strong> {{ task.next_action }}
+                        </div>
+                        {% endif %}
+                        
+                        <div class="task-footer">
+                            <div class="task-date">Created {{ task.created_at|date:"M d, Y" }}</div>
+                            <div class="task-priority priority-{{ task.priority }}">{{ task.get_priority_display }} Priority</div>
+                        </div>
+                        
+                        <div class="task-actions">
+                            <button class="btn-action btn-sm btn-view-task" data-id="{{ task.id }}">View Details</button>
+                            {% if task.status != 'completed' %}
+                            <button class="btn-action btn-sm btn-complete-task" data-id="{{ task.id }}">Mark Complete</button>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="empty-state">
+                        <p>No active tasks. Create one to get started.</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            
+            <!-- New section for AI-Suggested tasks -->
+            <div class="section suggested-tasks">
+                <div class="section-title">
+                    <h2>AI-Suggested Tasks</h2>
+                    <button id="btn-generate-suggestions" class="btn-action">Generate New Suggestions</button>
+                </div>
+                
+                <div class="tasks-container">
+                    <div id="suggestion-loading" style="display:none;">
+                        <div class="spinner"></div>
+                        <p>Analyzing your data and generating task suggestions...</p>
+                    </div>
+                    
+                    {% for task in suggested_tasks %}
+                    <div class="task-card suggested-task" data-id="{{ task.id }}">
+                        <div class="task-header">
+                            <h3 class="task-title">{{ task.title }}</h3>
+                            <span class="status-badge status-draft">Suggestion</span>
+                        </div>
+                        
+                        <div class="task-description">{{ task.description }}</div>
+                        
+                        {% if task.due_date %}
+                        <div class="task-due-date">
+                            <strong>Due:</strong> {{ task.due_date|date:"M d, Y" }}
+                        </div>
+                        {% endif %}
+                        
+                        <div class="task-footer">
+                            <div class="task-date">Suggested on {{ task.created_at|date:"M d, Y" }}</div>
+                            <div class="task-priority priority-{{ task.priority }}">{{ task.get_priority_display }} Priority</div>
+                        </div>
+                        
+                        <div class="task-actions">
+                            <button class="btn-action btn-sm btn-approve-suggestion" data-id="{{ task.id }}">Approve</button>
+                            <button class="btn-action btn-sm btn-reject-suggestion" data-id="{{ task.id }}">Reject</button>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="empty-state">
+                        <p>No task suggestions available. Click "Generate New Suggestions" to have the AI analyze your data and suggest tasks.</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            
+            <div class="section completed-tasks">
+                <div class="section-title">
+                    <h2>Completed Tasks</h2>
+                </div>
+                
+                <div class="tasks-container">
+                    {% for task in completed_tasks %}
+                    <div class="task-card">
+                        <div class="task-header">
+                            <h3 class="task-title">{{ task.title }}</h3>
+                            <span class="status-badge status-{{ task.status }}">{{ task.get_status_display }}</span>
+                        </div>
+                        
+                        <div class="task-description">{{ task.description }}</div>
+                        
+                        <div class="task-footer">
+                            <div class="task-date">Completed {{ task.completed_at|date:"M d, Y" }}</div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="empty-state">
+                        <p>No completed tasks yet.</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </main>
+        
+        <footer>
+            <p>&copy; {% now "Y" %} Financial Advisor AI. All rights reserved.</p>
+        </footer>
+    </div>
+    
+    <!-- Task Detail Modal -->
+    <div id="task-detail-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modal-task-title">Task Detail</h2>
+                <span class="modal-close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div id="task-details-container"></div>
+                <div id="task-steps-container"></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- New Task Modal -->
+    <div id="new-task-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Create New Task</h2>
+                <span class="modal-close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="new-task-form">
+                    <div class="form-group">
+                        <label for="task-title">Title</label>
+                        <input type="text" id="task-title" name="title" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="task-description">Description</label>
+                        <textarea id="task-description" name="description" rows="4" required></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="task-priority">Priority</label>
+                        <select id="task-priority" name="priority">
+                            <option value="low">Low</option>
+                            <option value="medium" selected>Medium</option>
+                            <option value="high">High</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="task-due-date">Due Date (Optional)</label>
+                        <input type="datetime-local" id="task-due-date" name="due_date">
+                    </div>
+                    <button type="submit" class="btn-primary">Create Task</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- New Instruction Modal -->
+    <div id="new-instruction-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Add New Instruction</h2>
+                <span class="modal-close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="new-instruction-form">
+                    <div class="form-group">
+                        <label for="instruction-name">Name</label>
+                        <input type="text" id="instruction-name" name="name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="instruction-text">Instruction</label>
+                        <textarea id="instruction-text" name="instruction" rows="4" required></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Triggers</label>
+                        <div class="checkbox-group">
+                            <label>
+                                <input type="checkbox" name="triggers" value="email_received"> Email Received
+                            </label>
+                            <label>
+                                <input type="checkbox" name="triggers" value="calendar_created"> Calendar Event Created
+                            </label>
+                            <label>
+                                <input type="checkbox" name="triggers" value="hubspot_contact_created"> HubSpot Contact Created
+                            </label>
+                            <label>
+                                <input type="checkbox" name="triggers" value="manual"> Manual Trigger
+                            </label>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn-primary">Add Instruction</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Test Instruction Modal -->
+    <div id="test-instruction-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Test Instruction</h2>
+                <span class="modal-close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div id="test-instruction-container">
+                    <div class="instruction-preview">
+                        <h3 id="test-instruction-name"></h3>
+                        <p id="test-instruction-text"></p>
+                    </div>
+                    
+                    <div class="test-status-container">
+                        <div id="test-loading" style="display: none;">
+                            <div class="spinner"></div>
+                            <p>Testing instruction...</p>
+                        </div>
+                        
+                        <div id="test-results-container" style="display: none;">
+                            <h3>Test Results</h3>
+                            <div id="test-results"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="btn-run-test" class="btn-primary">Run Test</button>
+                <button id="btn-close-test" class="btn-secondary">Close</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        $(document).ready(function() {
+            // Task detail modal functionality
+            $('.btn-view-task').on('click', function() {
+                const taskId = $(this).data('id');
+                loadTaskDetails(taskId);
+            });
+            
+            // New task modal functionality
+            $('#btn-new-task').on('click', function() {
+                $('#new-task-modal').show();
+            });
+            
+            // New instruction modal functionality
+            $('#btn-new-instruction').on('click', function() {
+                $('#new-instruction-modal').show();
+            });
+            
+            // Close modal buttons
+            $('.modal-close').on('click', function() {
+                $(this).closest('.modal').hide();
+            });
+            
+            // Close modals when clicking outside
+            $(window).on('click', function(event) {
+                if ($(event.target).hasClass('modal')) {
+                    $('.modal').hide();
+                }
+            });
+            
+            // Submit new task form
+            $('#new-task-form').on('submit', function(e) {
+                e.preventDefault();
+                
+                const formData = {
+                    title: $('#task-title').val(),
+                    description: $('#task-description').val(),
+                    priority: $('#task-priority').val(),
+                    due_date: $('#task-due-date').val() || null
+                };
+                
+                $.ajax({
+                    url: '{% url "api_tasks" %}',
+                    type: 'POST',
+                    data: JSON.stringify(formData),
+                    contentType: 'application/json',
+                    headers: {
+                        'X-CSRFToken': getCookie('csrftoken')
+                    },
+                    success: function(response) {
+                        location.reload();
+                    },
+                    error: function(xhr) {
+                        alert('Error creating task: ' + xhr.responseText);
+                    }
+                });
+            });
+            
+            // Submit new instruction form
+            $('#new-instruction-form').on('submit', function(e) {
+                e.preventDefault();
+                
+                const formData = {
+                    name: $('#instruction-name').val(),
+                    instruction: $('#instruction-text').val(),
+                    trigger_conditions: buildTriggerConditions()
+                };
+                
+                $.ajax({
+                    url: '{% url "api_instructions" %}',
+                    type: 'POST',
+                    data: JSON.stringify(formData),
+                    contentType: 'application/json',
+                    headers: {
+                        'X-CSRFToken': getCookie('csrftoken')
+                    },
+                    success: function(response) {
+                        location.reload();
+                    },
+                    error: function(xhr) {
+                        alert('Error creating instruction: ' + xhr.responseText);
+                    }
+                });
+            });
+            
+            // Mark task as complete button
+            $('.btn-complete-task').on('click', function() {
+                const taskId = $(this).data('id');
+                
+                if (confirm('Mark this task as complete?')) {
+                    $.ajax({
+                        url: `{% url "api_tasks" %}${taskId}/complete/`,
+                        type: 'POST',
+                        headers: {
+                            'X-CSRFToken': getCookie('csrftoken')
+                        },
+                        success: function(response) {
+                            location.reload();
+                        },
+                        error: function(xhr) {
+                            alert('Error completing task: ' + xhr.responseText);
+                        }
+                    });
+                }
+            });
+            
+            // Add trigger condition row
+            $('#add-trigger-btn').on('click', function() {
+                addTriggerConditionRow();
+            });
+            
+            // Show appropriate trigger fields based on source type
+            $(document).on('change', '.trigger-source', function() {
+                const sourceType = $(this).val();
+                const row = $(this).closest('.trigger-row');
+                
+                // Hide all condition fields
+                row.find('.condition-fields').hide();
+                
+                // Show the appropriate fields for this source
+                if (sourceType) {
+                    row.find(`.${sourceType}-fields`).show();
+                }
+            });
+            
+            // Test instruction button click handler
+            $('.btn-test-instruction').on('click', function() {
+                const instructionCard = $(this).closest('.instruction-card');
+                const instructionId = instructionCard.data('id');
+                const instructionName = instructionCard.find('.instruction-name').text();
+                const instructionText = instructionCard.find('.instruction-text').text().replace(/"/g, '');
+                
+                // Set the instruction details in the test modal
+                $('#test-instruction-name').text(instructionName);
+                $('#test-instruction-text').text(instructionText);
+                
+                // Store the instruction ID for later use
+                $('#btn-run-test').data('instruction-id', instructionId);
+                
+                // Reset the test results
+                $('#test-results-container').hide();
+                $('#test-results').html('');
+                
+                // Show the test modal
+                $('#test-instruction-modal').show();
+            });
+            
+            // Run test button click handler
+            $('#btn-run-test').on('click', function() {
+                const instructionId = $(this).data('instruction-id');
+                
+                // Show loading spinner
+                $('#test-loading').show();
+                $('#test-results-container').hide();
+                
+                // Call the API to test the instruction
+                $.ajax({
+                    url: `{% url "api_instructions" %}${instructionId}/test/`,
+                    type: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCookie('csrftoken')
+                    },
+                    success: function(response) {
+                        // Hide loading spinner
+                        $('#test-loading').hide();
+                        
+                        // Display test results
+                        let resultsHtml = '';
+                        
+                        // Show matching status
+                        if (response.matches) {
+                            resultsHtml += `<div class="test-result-item test-success">
+                                <strong>✓ Success:</strong> Instruction trigger conditions match the test event.
+                            </div>`;
+                        } else {
+                            resultsHtml += `<div class="test-result-item test-warning">
+                                <strong>⚠ Warning:</strong> Instruction trigger conditions do not match the test event. You may need to adjust your instruction or triggers.
+                            </div>`;
+                        }
+                        
+                        // Show test data
+                        resultsHtml += `<div class="test-result-item test-info">
+                            <strong>Test Data:</strong> ${response.source} event
+                            <pre>${JSON.stringify(response.test_data, null, 2)}</pre>
+                        </div>`;
+                        
+                        // Show analysis if available
+                        if (response.analysis) {
+                            let analysisClass = response.analysis.is_clear && response.analysis.is_actionable ? 'test-success' : 'test-warning';
+                            
+                            resultsHtml += `<div class="test-result-item ${analysisClass}">
+                                <strong>Instruction Analysis:</strong>
+                                <ul>
+                                    <li>Clear: ${response.analysis.is_clear ? '✓ Yes' : '⚠ No'}</li>
+                                    <li>Actionable: ${response.analysis.is_actionable ? '✓ Yes' : '⚠ No'}</li>
+                                </ul>
+                                <p>${response.analysis.feedback}</p>
+                            </div>`;
+                        }
+                        
+                        // Update the results container
+                        $('#test-results').html(resultsHtml);
+                        $('#test-results-container').show();
+                    },
+                    error: function(xhr) {
+                        // Hide loading spinner
+                        $('#test-loading').hide();
+                        
+                        // Display error
+                        let errorMessage = 'Error testing instruction';
+                        try {
+                            const response = JSON.parse(xhr.responseText);
+                            errorMessage = response.error || errorMessage;
+                        } catch (e) {}
+                        
+                        $('#test-results').html(`<div class="test-result-item test-error">
+                            <strong>Error:</strong> ${errorMessage}
+                        </div>`);
+                        $('#test-results-container').show();
+                    }
+                });
+            });
+            
+            // Close test modal button
+            $('#btn-close-test').on('click', function() {
+                $('#test-instruction-modal').hide();
+            });
+            
+            // Generate suggestions button click handler
+            $('#btn-generate-suggestions').on('click', function() {
+                generateTaskSuggestions();
+            });
+            
+            // Approve suggestion button click handler
+            $('.btn-approve-suggestion').on('click', function() {
+                const taskId = $(this).data('id');
+                approveSuggestion(taskId);
+            });
+            
+            // Reject suggestion button click handler
+            $('.btn-reject-suggestion').on('click', function() {
+                const taskId = $(this).data('id');
+                rejectSuggestion(taskId);
+            });
+        });
+        
+        // Load task details into modal
+        function loadTaskDetails(taskId) {
+            $.ajax({
+                url: `{% url "api_tasks" %}${taskId}/`,
+                type: 'GET',
+                success: function(task) {
+                    // Set task details
+                    $('#modal-task-title').text(task.title);
+                    
+                    let detailsHtml = `
+                        <div class="task-detail-section">
+                            <p>${task.description}</p>
+                            <div class="task-meta">
+                                <div><strong>Status:</strong> ${task.status}</div>
+                                <div><strong>Priority:</strong> ${task.priority}</div>
+                                <div><strong>Created:</strong> ${new Date(task.created_at).toLocaleDateString()}</div>
+                                ${task.due_date ? `<div><strong>Due:</strong> ${new Date(task.due_date).toLocaleDateString()}</div>` : ''}
+                                ${task.completed_at ? `<div><strong>Completed:</strong> ${new Date(task.completed_at).toLocaleDateString()}</div>` : ''}
+                            </div>
+                            ${task.next_action ? `<div class="next-action"><strong>Next Action:</strong> ${task.next_action}</div>` : ''}
+                        </div>
+                    `;
+                    
+                    $('#task-details-container').html(detailsHtml);
+                    
+                    // Load task steps
+                    $.ajax({
+                        url: `{% url "api_tasks" %}${taskId}/steps/`,
+                        type: 'GET',
+                        success: function(steps) {
+                            let stepsHtml = '<div class="task-steps"><h3>Steps</h3>';
+                            
+                            if (steps.length > 0) {
+                                stepsHtml += '<ol>';
+                                steps.forEach(function(step) {
+                                    stepsHtml += `
+                                        <li class="${step.completed ? 'completed-step' : ''}">
+                                            ${step.description}
+                                            ${step.completed ? `<span class="step-completed">✓</span>` : ''}
+                                        </li>
+                                    `;
+                                });
+                                stepsHtml += '</ol>';
+                            } else {
+                                stepsHtml += '<p>No steps defined for this task.</p>';
+                            }
+                            
+                            stepsHtml += '</div>';
+                            $('#task-steps-container').html(stepsHtml);
+                            
+                            // Show the modal
+                            $('#task-detail-modal').show();
+                        }
+                    });
+                },
+                error: function(xhr) {
+                    alert('Error loading task details: ' + xhr.responseText);
+                }
+            });
+        }
+        
+        // Generate task suggestions
+        function generateTaskSuggestions() {
+            // Show loading indicator
+            $('#suggestion-loading').show();
+            $('.suggested-tasks .empty-state').hide();
+            
+            // Call API to generate suggestions
+            $.ajax({
+                url: '{% url "api_generate_task_suggestions" %}',
+                type: 'POST',
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                success: function(response) {
+                    // Hide loading indicator
+                    $('#suggestion-loading').hide();
+                    
+                    if (response.length > 0) {
+                        // Refresh the page to show new suggestions
+                        location.reload();
+                    } else {
+                        // Show message if no suggestions were generated
+                        $('.suggested-tasks .empty-state').show();
+                        $('.suggested-tasks .empty-state p').text('No task suggestions could be generated at this time. Try again later.');
+                    }
+                },
+                error: function(xhr) {
+                    // Hide loading indicator
+                    $('#suggestion-loading').hide();
+                    
+                    // Show error message
+                    $('.suggested-tasks .empty-state').show();
+                    
+                    let errorMessage = 'Error generating suggestions';
+                    try {
+                        const response = JSON.parse(xhr.responseText);
+                        errorMessage = response.error || errorMessage;
+                    } catch (e) {}
+                    
+                    $('.suggested-tasks .empty-state p').text('Error: ' + errorMessage);
+                }
+            });
+        }
+          // Function to approve a suggested task
+        function approveSuggestion(taskId) {
+            $.ajax({
+                url: `{% url "api_approve_task_suggestion" 0 %}`.replace(/0/, taskId),
+                type: 'POST',
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                success: function(response) {
+                    // Refresh the page to update task lists
+                    location.reload();
+                },
+                error: function(xhr) {
+                    let errorMessage = 'Error approving suggestion';
+                    try {
+                        const response = JSON.parse(xhr.responseText);
+                        errorMessage = response.error || errorMessage;
+                    } catch (e) {}
+                    
+                    alert('Error: ' + errorMessage);
+                }
+            });
+        }
+        
+        // Function to reject a suggested task
+        function rejectSuggestion(taskId) {
+            $.ajax({
+                url: `{% url "api_tasks" %}${taskId}/`,
+                type: 'DELETE',
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                success: function() {
+                    // Remove the task card from the UI
+                    $(`.suggested-task[data-id="${taskId}"]`).fadeOut(function() {
+                        $(this).remove();
+                        
+                        // Show empty state if no suggestions left
+                        if ($('.suggested-task').length === 0) {
+                            $('.suggested-tasks .empty-state').show();
+                        }
+                    });
+                },
+                error: function() {
+                    alert('Error rejecting suggestion');
+                }
+            });
+        }
+        
+        // Add a new trigger condition row to the form
+        function addTriggerConditionRow() {
+            const rowHtml = `
+                <div class="trigger-row">
+                    <div class="form-group">
+                        <label>Trigger Source:</label>
+                        <select class="trigger-source">
+                            <option value="">Select Source</option>
+                            <option value="email">Email</option>
+                            <option value="calendar">Calendar</option>
+                            <option value="hubspot">HubSpot</option>
+                        </select>
+                        
+                        <button type="button" class="btn-remove-trigger">Remove</button>
+                    </div>
+                    
+                    <div class="condition-fields email-fields" style="display: none;">
+                        <div class="form-group">
+                            <label>Email Condition:</label>
+                            <select class="email-condition">
+                                <option value="new_email">New Email Received</option>
+                                <option value="specific_sender">Email from Specific Sender</option>
+                                <option value="subject_contains">Subject Contains</option>
+                            </select>
+                        </div>
+                        <div class="form-group email-pattern-field">
+                            <label>Pattern to Match:</label>
+                            <input type="text" class="email-pattern" placeholder="e.g., client@example.com or Meeting Request">
+                        </div>
+                    </div>
+                    
+                    <div class="condition-fields calendar-fields" style="display: none;">
+                        <div class="form-group">
+                            <label>Calendar Condition:</label>
+                            <select class="calendar-condition">
+                                <option value="new_event">New Event Created</option>
+                                <option value="event_updated">Event Updated</option>
+                                <option value="event_cancelled">Event Cancelled</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="condition-fields hubspot-fields" style="display: none;">
+                        <div class="form-group">
+                            <label>HubSpot Condition:</label>
+                            <select class="hubspot-condition">
+                                <option value="new_contact">New Contact Created</option>
+                                <option value="contact_updated">Contact Updated</option>
+                                <option value="deal_stage_change">Deal Stage Changed</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            $('#trigger-conditions-container').append(rowHtml);
+            
+            // Add event handler for remove button
+            $('.btn-remove-trigger').off('click').on('click', function() {
+                $(this).closest('.trigger-row').remove();
+            });
+        }
+        
+        // Build trigger conditions object from form fields
+        function buildTriggerConditions() {
+            const triggerConditions = {
+                sources: [],
+                email_conditions: {},
+                calendar_conditions: {},
+                hubspot_conditions: {}
+            };
+            
+            // Process each trigger row
+            $('.trigger-row').each(function() {
+                const sourceType = $(this).find('.trigger-source').val();
+                
+                if (!sourceType) return; // Skip empty rows
+                
+                // Add source to list
+                if (!triggerConditions.sources.includes(sourceType)) {
+                    triggerConditions.sources.push(sourceType);
+                }
+                
+                // Process email conditions
+                if (sourceType === 'email') {
+                    const condition = $(this).find('.email-condition').val();
+                    const pattern = $(this).find('.email-pattern').val();
+                    
+                    if (condition === 'new_email') {
+                        triggerConditions.email_conditions.new_email = true;
+                    } else if (condition === 'specific_sender' && pattern) {
+                        if (!triggerConditions.email_conditions.from_patterns) {
+                            triggerConditions.email_conditions.from_patterns = [];
+                        }
+                        triggerConditions.email_conditions.from_patterns.push(pattern);
+                    } else if (condition === 'subject_contains' && pattern) {
+                        if (!triggerConditions.email_conditions.subject_patterns) {
+                            triggerConditions.email_conditions.subject_patterns = [];
+                        }
+                        triggerConditions.email_conditions.subject_patterns.push(pattern);
+                    }
+                }
+                
+                // Process calendar conditions
+                else if (sourceType === 'calendar') {
+                    const condition = $(this).find('.calendar-condition').val();
+                    
+                    if (condition === 'new_event') {
+                        triggerConditions.calendar_conditions.new_event = true;
+                    } else if (condition === 'event_updated') {
+                        triggerConditions.calendar_conditions.updated_event = true;
+                    } else if (condition === 'event_cancelled') {
+                        triggerConditions.calendar_conditions.cancelled_event = true;
+                    }
+                }
+                
+                // Process HubSpot conditions
+                else if (sourceType === 'hubspot') {
+                    const condition = $(this).find('.hubspot-condition').val();
+                    
+                    if (condition === 'new_contact') {
+                        if (!triggerConditions.hubspot_conditions.object_types) {
+                            triggerConditions.hubspot_conditions.object_types = [];
+                        }
+                        triggerConditions.hubspot_conditions.object_types.push('contact');
+                    } else if (condition === 'contact_updated') {
+                        if (!triggerConditions.hubspot_conditions.property_changes) {
+                            triggerConditions.hubspot_conditions.property_changes = [];
+                        }
+                        triggerConditions.hubspot_conditions.property_changes.push('contact_property');
+                    } else if (condition === 'deal_stage_change') {
+                        if (!triggerConditions.hubspot_conditions.property_changes) {
+                            triggerConditions.hubspot_conditions.property_changes = [];
+                        }
+                        triggerConditions.hubspot_conditions.property_changes.push('dealstage');
+                    }
+                }
+            });
+            
+            // If no specific triggers were defined, return null
+            if (triggerConditions.sources.length === 0) {
+                return null;
+            }
+            
+            return triggerConditions;
+        }
+        
+        // Helper function to get CSRF token from cookies
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+    </script>
+</body>
+</html>

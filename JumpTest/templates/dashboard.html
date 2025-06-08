@@ -28,6 +28,12 @@
                 {% endfor %}
             </div>
             {% endif %}
+              <div class="navigation-menu">
+                <a href="{% url 'dashboard' %}" class="nav-link active">Dashboard</a>
+                <a href="{% url 'chat_list' %}" class="nav-link">Chat</a>
+                <a href="{% url 'agent_dashboard' %}" class="nav-link">Agent Tasks</a>
+                <a href="{% url 'user_settings' %}" class="nav-link">Settings</a>
+            </div>
             
             <div class="setup-section">
                 <h2>Account Connections</h2>

@@ -17,10 +17,22 @@ from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import Flow
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
+from rest_framework import viewsets, status
+from rest_framework.response import Response
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
 
-from .models import UserProfile, HubspotContact, EmailInteraction, CalendarEvent, Chat, ChatMessage
+from .models import (
+    UserProfile, HubspotContact, EmailInteraction, CalendarEvent, Chat, ChatMessage,
+    AgentTask, TaskStep, OngoingInstruction, AgentMemory, WebhookEvent
+)
+from .serializers import (
+    AgentTaskSerializer, AgentTaskCreateSerializer, TaskStepSerializer,
+    OngoingInstructionSerializer, WebhookEventSerializer
+)
+
 from .utils import RAGService  # Assuming you have a utility for RAG processing
-
+from .agent_service import AgentService
 
 def google_login(request):
     """
@@ -115,7 +127,7 @@ def hubspot_auth(request):
         f"https://app.hubspot.com/oauth/authorize"
         f"?client_id={settings.HUBSPOT_CLIENT_ID}"
         f"&redirect_uri={settings.HUBSPOT_REDIRECT_URI}"
-        f"&scope=contacts%20timeline"
+        f"&scope=crm.objects.contacts.read%20timeline"
     )
 
     # Debug info
@@ -133,7 +145,7 @@ def hubspot_auth(request):
     return redirect(auth_url)
 
 
-@login_required
+# @login_required
 def hubspot_callback(request):
     code = request.GET.get('code')
     error = request.GET.get('error')
@@ -836,6 +848,8 @@ def chat_message(request, chat_id):
                 email_data.append(email.serialize_for_vector_db())
 
         # Process emails
+        print("Processing emails for RAG...")
+        print(f"Found {len(email_data)} emails to process.")
         if email_data:
             rag_service.process_emails(email_data)
 
@@ -994,3 +1008,440 @@ def user_settings(request):
         'profile': profile,
         'has_openai_key': bool(profile.openai_api_key)
     })
+
+
+# Agent API endpoints
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def agent_tasks(request):
+    """List all tasks or create a new task"""
+    if request.method == 'GET':
+        tasks = AgentTask.objects.filter(user=request.user)
+        serializer = AgentTaskSerializer(tasks, many=True)
+        return Response(serializer.data)
+
+    elif request.method == 'POST':
+        serializer = AgentTaskCreateSerializer(data=request.data)
+        if serializer.is_valid():
+            # Create task using the agent service
+            agent_service = AgentService(request.user.id)
+            task = agent_service.create_task(
+                title=serializer.validated_data['title'],
+                description=serializer.validated_data['description'],
+                priority=serializer.validated_data.get('priority', 'medium'),
+                due_date=serializer.validated_data.get('due_date')
+            )
+
+            if task:
+                return Response(AgentTaskSerializer(task).data, status=status.HTTP_201_CREATED)
+            else:
+                return Response(
+                    {"error": "Failed to create task"},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET', 'PUT', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def agent_task_detail(request, task_id):
+    """Retrieve, update or delete a task"""
+    # Check if task exists and belongs to the user
+    try:
+        task = AgentTask.objects.get(id=task_id, user=request.user)
+    except AgentTask.DoesNotExist:
+        return Response(status=status.HTTP_404_NOT_FOUND)
+
+    # Initialize agent service
+    agent_service = AgentService(request.user.id)
+
+    if request.method == 'GET':
+        serializer = AgentTaskSerializer(task)
+        return Response(serializer.data)
+
+    elif request.method == 'PUT':
+        serializer = AgentTaskSerializer(task, data=request.data, partial=True)
+        if serializer.is_valid():
+            if 'status' in serializer.validated_data:
+                # Use the agent service to update status
+                new_status = serializer.validated_data['status']
+                next_action = serializer.validated_data.get('next_action')
+
+                result = agent_service.update_task_status(
+                    task_id, new_status, next_action)
+                if not result:
+                    return Response(
+                        {"error": "Failed to update task status"},
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                    )
+
+            # For other fields, just save directly
+            serializer.save()
+            return Response(serializer.data)
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    elif request.method == 'DELETE':
+        task.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def complete_task(request, task_id):
+    """Mark a task as completed"""
+    result = request.data.get('result', '')
+
+    agent_service = AgentService(request.user.id)
+    success = agent_service.complete_task(task_id, result)
+
+    if success:
+        # Get the updated task
+        task = AgentTask.objects.get(id=task_id, user=request.user)
+        serializer = AgentTaskSerializer(task)
+        return Response(serializer.data)
+    else:
+        return Response(
+            {"error": "Failed to complete task"},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def suggested_tasks(request):
+    """Get AI-suggested tasks for the user"""
+    agent_service = AgentService(request.user.id)
+    tasks = agent_service.get_suggested_tasks()
+    
+    serializer = AgentTaskSerializer(tasks, many=True)
+    return Response(serializer.data)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def generate_task_suggestions(request):
+    """Generate new AI task suggestions"""
+    agent_service = AgentService(request.user.id)
+    
+    # Check if OpenAI API key is available
+    if not agent_service.has_openai:
+        return Response(
+            {"error": "OpenAI API key is required to generate suggestions"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    # Generate suggestions
+    suggested_tasks = agent_service.analyze_and_suggest_tasks()
+    
+    if suggested_tasks:
+        serializer = AgentTaskSerializer(suggested_tasks, many=True)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    else:
+        return Response(
+            {"message": "No task suggestions were generated"},
+            status=status.HTTP_200_OK
+        )
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def approve_task_suggestion(request, task_id):
+    """Approve an AI-suggested task"""
+    agent_service = AgentService(request.user.id)
+    
+    # Approve the suggestion
+    success = agent_service.approve_suggested_task(task_id)
+    
+    if success:
+        # Get the updated task
+        task = AgentTask.objects.get(id=task_id, user=request.user)
+        serializer = AgentTaskSerializer(task)
+        return Response(serializer.data)
+    else:
+        return Response(
+            {"error": "Failed to approve task suggestion"},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+
+@api_view(['POST', 'GET'])
+@permission_classes([IsAuthenticated])
+def ongoing_instructions(request):
+    """List all instructions or create a new instruction"""
+    if request.method == 'GET':
+        instructions = OngoingInstruction.objects.filter(user=request.user)
+        serializer = OngoingInstructionSerializer(instructions, many=True)
+        return Response(serializer.data)
+
+    elif request.method == 'POST':
+        # Extract data from request
+        name = request.data.get('name')
+        instruction = request.data.get('instruction')
+        triggers = request.data.get('triggers', [])
+
+        if not name or not instruction:
+            return Response(
+                {"error": "Name and instruction are required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Create using agent service
+        agent_service = AgentService(request.user.id)
+        instruction_obj = agent_service.create_instruction(
+            name, instruction, triggers)
+
+        if instruction_obj:
+            serializer = OngoingInstructionSerializer(instruction_obj)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        else:
+            return Response(
+                {"error": "Failed to create instruction"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+@api_view(['GET', 'PUT', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def ongoing_instruction_detail(request, instruction_id):
+    """Retrieve, update or delete an instruction"""
+    try:
+        instruction = OngoingInstruction.objects.get(
+            id=instruction_id, user=request.user)
+    except OngoingInstruction.DoesNotExist:
+        return Response(status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'GET':
+        serializer = OngoingInstructionSerializer(instruction)
+        return Response(serializer.data)
+
+    elif request.method == 'PUT':
+        serializer = OngoingInstructionSerializer(
+            instruction, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    elif request.method == 'DELETE':
+        instruction.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+@api_view(['POST', 'GET'])
+def webhook_receiver(request, source):
+    """Handle incoming webhooks from external services
+    
+    This endpoint handles both verification requests (GET) and actual webhook events (POST)
+    from Gmail, Google Calendar, and HubSpot.
+    """
+    # Validate source is one of our supported types
+    if source not in ['gmail', 'calendar', 'hubspot']:
+        return Response(
+            {"error": f"Unsupported webhook source: {source}"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+        
+    # Handle verification requests (GET)
+    if request.method == 'GET':
+        # For Gmail and Calendar verification
+        if source in ['gmail', 'calendar'] and 'hub.challenge' in request.GET:
+            challenge = request.GET.get('hub.challenge')
+            return Response(challenge, content_type='text/plain')
+            
+        # For HubSpot verification
+        elif source == 'hubspot' and 'hub.verify' in request.GET:
+            verify_token = request.GET.get('hub.verify')
+            expected_token = getattr(settings, 'HUBSPOT_WEBHOOK_VERIFY_TOKEN', None)
+            if verify_token and expected_token and verify_token == expected_token:
+                return Response("OK", content_type='text/plain')
+            return Response("Verification failed", status=status.HTTP_403_FORBIDDEN)
+            
+        # Default verification response
+        return Response("OK", content_type='text/plain')
+
+    # Parse the payload
+    try:
+        payload = request.data
+
+        # Extract user identifier from the payload
+        # This will vary depending on your webhook integration
+        # For example, with Gmail push notifications, you might have a userEmail
+        user_email = None
+
+        if source == 'gmail':
+            # Gmail webhook might have a userEmail field
+            user_email = payload.get('emailAddress')
+        elif source == 'calendar':
+            # Calendar webhook might have an organizer email
+            if 'organizer' in payload:
+                user_email = payload['organizer'].get('email')
+        elif source == 'hubspot':
+            # HubSpot integration might need to use an API key to identify the user
+            user_id = payload.get('userId')  # Just a placeholder
+
+        # Find the user from the email
+        if user_email:
+            try:
+                user = User.objects.get(email=user_email)
+
+                # Identify the event type from the payload
+                event_type = 'default'
+                if source == 'gmail':
+                    event_type = payload.get('historyId', 'message')
+                elif source == 'calendar':
+                    event_type = payload.get('status', 'updated')
+                elif source == 'hubspot':
+                    event_type = payload.get('eventType', 'change')
+
+                # Record the webhook event
+                agent_service = AgentService(user.id)
+                event = agent_service.record_webhook_event(
+                    source, event_type, payload)
+
+                if event:
+                    # Process the event (or queue it for processing)
+                    agent_service.process_webhook_event(event.id)
+                    return Response({"status": "success", "event_id": event.id})
+                else:
+                    return Response(
+                        {"error": "Failed to record webhook event"},
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                    )
+
+            except User.DoesNotExist:
+                return Response(
+                    {"error": f"No matching user found for {user_email}"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+        else:
+            return Response(
+                {"error": "Could not identify user from webhook payload"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+    except Exception as e:
+        return Response(
+            {"error": f"Error processing webhook: {str(e)}"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@login_required
+def agent_dashboard(request):
+    """View for the agent task dashboard"""
+    tasks = AgentTask.objects.filter(user=request.user)
+    active_tasks = tasks.exclude(
+        status__in=['completed', 'cancelled', 'failed', 'draft'])
+    completed_tasks = tasks.filter(status='completed')
+    
+    # Get suggestions (tasks with is_suggestion=True)
+    suggested_tasks = tasks.filter(is_suggestion=True)
+
+    instructions = OngoingInstruction.objects.filter(
+        user=request.user, status='active')
+
+    context = {
+        'active_tasks': active_tasks,
+        'completed_tasks': completed_tasks,
+        'suggested_tasks': suggested_tasks,
+        'instructions': instructions
+    }
+
+    return render(request, 'agent_dashboard.html', context)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def test_instruction(request, instruction_id):
+    """Test an instruction with sample data to see if it matches and is actionable"""
+    try:
+        instruction = OngoingInstruction.objects.get(id=instruction_id, user=request.user)
+    except OngoingInstruction.DoesNotExist:
+        return Response(
+            {"error": "Instruction not found"},
+            status=status.HTTP_404_NOT_FOUND
+        )
+        
+    # Get test data from request if provided
+    test_data = request.data.get('test_data')
+    
+    # Use the agent service to test the instruction
+    agent_service = AgentService(request.user.id)
+    result = agent_service.test_instruction(instruction_id, test_data)
+    
+    return Response(result)
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def task_steps(request, task_id):
+    """List all steps for a task or create a new step"""
+    # Check if task exists and belongs to the user
+    try:
+        task = AgentTask.objects.get(id=task_id, user=request.user)
+    except AgentTask.DoesNotExist:
+        return Response(status=status.HTTP_404_NOT_FOUND)
+        
+    # Initialize agent service
+    agent_service = AgentService(request.user.id)
+    
+    if request.method == 'GET':
+        steps = TaskStep.objects.filter(task=task).order_by('step_number')
+        serializer = TaskStepSerializer(steps, many=True)
+        return Response(serializer.data)
+        
+    elif request.method == 'POST':
+        # Extract data
+        description = request.data.get('description', '')
+        step_number = request.data.get('step_number')
+        
+        if not description:
+            return Response(
+                {"error": "Description is required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        # Create new step using agent service
+        step = agent_service.add_task_step(
+            task_id=task_id,
+            description=description,
+            step_number=step_number
+        )
+        
+        if step:
+            serializer = TaskStepSerializer(step)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        else:
+            return Response(
+                {"error": "Failed to create step"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def complete_step(request, task_id, step_number):
+    """Mark a step as completed"""
+    result = request.data.get('result', '')
+    
+    agent_service = AgentService(request.user.id)
+    success = agent_service.complete_task_step(task_id, step_number, result)
+    
+    if success:
+        try:
+            step = TaskStep.objects.get(task__id=task_id, step_number=step_number)
+            serializer = TaskStepSerializer(step)
+            return Response(serializer.data)
+        except TaskStep.DoesNotExist:
+            return Response(
+                {"error": "Step not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+    else:
+        return Response(
+            {"error": "Failed to complete step"},
+            status=status.HTTP_404_NOT_FOUND
+        )
