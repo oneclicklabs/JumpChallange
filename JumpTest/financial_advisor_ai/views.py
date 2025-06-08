@@ -22,7 +22,7 @@ from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from openai import OpenAI
-
+from django.db.models import Q
 from .models import (
     UserProfile, HubspotContact, EmailInteraction, CalendarEvent, Chat, ChatMessage,
     AgentTask, TaskStep, OngoingInstruction, AgentMemory, WebhookEvent
@@ -896,8 +896,8 @@ def chat_message(request, chat_id):
         contact_id = None
 
         # Check for contact references in the message
-        # name_matches = extract_name_from_query2(message_text)
-        # print(f"Extracted name matches2: {name_matches}")
+        name_matches = extract_name_from_query2(message_text)
+        print(f"Extracted name matches2: {name_matches}")
         name_matches = extract_name_from_query(
             message_text, history, profile.openai_api_key)
         print(f"Extracted name matches: {name_matches}")
@@ -967,15 +967,15 @@ def chat_message(request, chat_id):
 def extract_name_from_query(query, history, openai_api_key):
 
     client = OpenAI()
-    message_text = 'extract the name or names of pepole refred to in this following message' + \
-        query+' if there is no names in that then use this history of messages' + str(history) + \
-        ' your reply should be just the list of names separated by commas'
+    message_text = 'extract the name or names of people referred to in this following message "' + query + \
+        ' "if you find a name then ignore the there is no names in that then use this history of messages "' + str(history) + \
+        ' "your reply should be just the list of names separated by commas'
     # answer = rag_service.answer_question(message_text, history)
     response = client.responses.create(
         model="gpt-4.1-mini",
         input=message_text
     )
-
+    # print(f"OpenAI Query: {message_text}")
     answer = response.output_text.lower()
     # Check if we received any names
     if not answer:
@@ -1039,12 +1039,14 @@ def find_matching_contacts(user, name_query):
     Find contacts matching a name query.
     Returns a list of matching contact objects.
     """
+    query = Q()
+    for name in name_query:
+        query |= Q(name__icontains=name)
     # First try exact matches on first name
-    contacts = HubspotContact.objects.filter(
-        user=user,
-        name__icontains=name_query
-    )
-
+    contacts = HubspotContact.objects.filter(user=user).filter(query)
+    #     name__icontains=query
+    # )
+    print(f"Found {contacts.count()} contacts matching '{name_query}'")
     return contacts
 
 
