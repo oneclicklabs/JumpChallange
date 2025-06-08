@@ -742,12 +742,13 @@ class AgentService:
     def _find_matching_instructions(self, event: WebhookEvent) -> List[OngoingInstruction]:
         """Find ongoing instructions that match a webhook event
 
-        Args:
+        Args:        Args:
             event: WebhookEvent to match against instructions
 
         Returns:
             List of matching OngoingInstruction objects
-        """        # Get all active ongoing instructions for this user
+        """
+        # Get all active ongoing instructions for this user
         instructions = OngoingInstruction.objects.filter(
             user=self.user,
             status='active'
@@ -755,63 +756,40 @@ class AgentService:
 
         matching_instructions = []
         payload = json.loads(event.payload)
-
+        
         for instruction in instructions:
-            # Check if this instruction has trigger conditions for this event source
-            if instruction.trigger_conditions:
-                trigger_conditions = instruction.trigger_conditions
+            # Check if this instruction has triggers for this event source
+            if instruction.triggers:
+                # Convert webhook source to instruction trigger format
+                source_mapping = {
+                    'gmail': ['email_received', 'email_sent'],
+                    'calendar': ['calendar_created', 'calendar_updated'],
+                    'hubspot': ['hubspot_contact_created', 'hubspot_contact_updated']
+                }
 
-                # Check if the source matches
-                if event.source in trigger_conditions.get('sources', []):
+                matching_triggers = source_mapping.get(event.source, [])
+
+                # Check if any of the instruction triggers match the event source
+                if any(trigger in instruction.triggers for trigger in matching_triggers):
                     # For Gmail events
-                    if event.source == 'gmail' and trigger_conditions.get('email_conditions'):
-                        email_conditions = trigger_conditions['email_conditions']
-
-                        # Check new email conditions
-                        if event.event_type == 'message' and email_conditions.get('new_email'):
-                            # Extract email details from payload
-                            # This is simplified, in practice you'd need to make an API call
-                            # to get the full email details from Gmail
-                            if 'from' in payload and any(
-                                sender_pattern in payload['from']
-                                for sender_pattern in email_conditions.get('from_patterns', [])
-                            ):
-                                matching_instructions.append(instruction)
-                            elif 'subject' in payload and any(
-                                subject_pattern in payload['subject']
-                                for subject_pattern in email_conditions.get('subject_patterns', [])
-                            ):
-                                matching_instructions.append(instruction)
+                    if event.source == 'gmail':
+                        # Check if the instruction is set up for email triggers
+                        if any(trigger in instruction.triggers for trigger in ['email_received', 'email_sent']):
+                            # For now, consider it a match if the trigger types align
+                            # More sophisticated matching could be done here with conditions
+                            matching_instructions.append(instruction)
 
                     # For Calendar events
-                    elif event.source == 'calendar' and trigger_conditions.get('calendar_conditions'):
-                        calendar_conditions = trigger_conditions['calendar_conditions']
-
-                        # Check new event conditions
-                        if event.event_type == 'created' and calendar_conditions.get('new_event'):
-                            matching_instructions.append(instruction)
-
-                        # Check updated event conditions
-                        elif event.event_type == 'updated' and calendar_conditions.get('updated_event'):
-                            matching_instructions.append(instruction)
-
-                    # For HubSpot events
-                    elif event.source == 'hubspot' and trigger_conditions.get('hubspot_conditions'):
-                        hubspot_conditions = trigger_conditions['hubspot_conditions']
-
-                        # Check object type conditions
-                        object_type = payload.get('objectType')
-                        if object_type and object_type in hubspot_conditions.get('object_types', []):
-                            matching_instructions.append(instruction)
-
-                        # Check property change conditions
-                        property_name = payload.get('propertyName')
-                        if property_name and property_name in hubspot_conditions.get('property_changes', []):
-                            matching_instructions.append(instruction)
-
-            # Also check instructions without specific trigger conditions but with the correct source
+                    elif event.source == 'calendar':
+                        # Check if the instruction is set up for calendar triggers
+                        if any(trigger in instruction.triggers for trigger in ['calendar_created', 'calendar_updated']):
+                            matching_instructions.append(instruction)                    # For HubSpot events
+                    elif event.source == 'hubspot':
+                        # Check if the instruction is set up for hubspot triggers
+                        if any(trigger in instruction.triggers for trigger in ['hubspot_contact_created', 'hubspot_contact_updated']):
+                            matching_instructions.append(instruction)# Also check instructions without specific triggers but that mention the event source
             # This allows for general instructions like "When I receive an email, do X"
-            elif not instruction.trigger_conditions and instruction.instruction.lower().find(event.source) >= 0:
+            elif not instruction.triggers and instruction.instruction.lower().find(event.source) >= 0:
                 matching_instructions.append(instruction)
 
         return matching_instructions

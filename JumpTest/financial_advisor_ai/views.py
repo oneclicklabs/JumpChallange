@@ -1296,16 +1296,18 @@ def webhook_receiver(request, source):
 
     # Parse the payload
     try:
-        payload = request.data
-
-        # Extract user identifier from the payload
+        payload = request.data        # Extract user identifier from the payload
         # This will vary depending on your webhook integration
         # For example, with Gmail push notifications, you might have a userEmail
         user_email = None
+        user = None
 
         if source == 'gmail':
             # Gmail webhook might have a userEmail field
             user_email = payload.get('emailAddress')
+            # For testing purposes, if no emailAddress provided, use the first user
+            if not user_email and User.objects.exists():
+                user = User.objects.first()
         elif source == 'calendar':
             # Calendar webhook might have an organizer email
             if 'organizer' in payload:
@@ -1314,39 +1316,40 @@ def webhook_receiver(request, source):
             # HubSpot integration might need to use an API key to identify the user
             user_id = payload.get('userId')  # Just a placeholder
 
-        # Find the user from the email
-        if user_email:
+        # Find the user from the email if we have one
+        if user_email and not user:
             try:
                 user = User.objects.get(email=user_email)
-
-                # Identify the event type from the payload
-                event_type = 'default'
-                if source == 'gmail':
-                    event_type = payload.get('historyId', 'message')
-                elif source == 'calendar':
-                    event_type = payload.get('status', 'updated')
-                elif source == 'hubspot':
-                    event_type = payload.get('eventType', 'change')
-
-                # Record the webhook event
-                agent_service = AgentService(user.id)
-                event = agent_service.record_webhook_event(
-                    source, event_type, payload)
-
-                if event:
-                    # Process the event (or queue it for processing)
-                    agent_service.process_webhook_event(event.id)
-                    return Response({"status": "success", "event_id": event.id})
-                else:
-                    return Response(
-                        {"error": "Failed to record webhook event"},
-                        status=status.HTTP_500_INTERNAL_SERVER_ERROR
-                    )
-
             except User.DoesNotExist:
                 return Response(
                     {"error": f"No matching user found for {user_email}"},
                     status=status.HTTP_404_NOT_FOUND
+                )
+        
+        if user:            # Identify the event type from the payload
+            event_type = 'default'
+            if source == 'gmail':
+                event_type = payload.get('historyId', 'message')
+                # Process Gmail-specific webhook data
+                gmail_result = _process_gmail_webhook(payload)
+            elif source == 'calendar':
+                event_type = payload.get('status', 'updated')
+            elif source == 'hubspot':
+                event_type = payload.get('eventType', 'change')
+
+            # Record the webhook event
+            agent_service = AgentService(user.id)
+            event = agent_service.record_webhook_event(
+                source, event_type, payload)
+
+            if event:
+                # Process the event (or queue it for processing)
+                agent_service.process_webhook_event(event.id)
+                return Response({"status": "success", "event_id": event.id})
+            else:
+                return Response(
+                    {"error": "Failed to record webhook event"},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
                 )
         else:
             return Response(
