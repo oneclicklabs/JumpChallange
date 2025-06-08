@@ -1,4 +1,5 @@
 from django.test import TestCase
+from django.test import TestCase
 from django.contrib.auth.models import User
 from unittest.mock import patch, MagicMock
 import json
@@ -14,15 +15,15 @@ class GmailIntegrationTests(TestCase):
     def setUp(self):
         # Create test user
         self.user = User.objects.create_user(
-            username='testuser',
-            email='test@example.com',
+            username='gmail_testuser',
+            email='gmail@example.com',
             password='testpassword'
         )
-        self.profile = UserProfile.objects.create(
-            user=self.user,
-            google_token='test_token',
-            google_refresh_token='test_refresh_token'
-        )
+        # Get the automatically created profile and update it
+        self.profile = UserProfile.objects.get(user=self.user)
+        self.profile.google_token = 'test_token'
+        self.profile.google_refresh_token = 'test_refresh_token'
+        self.profile.save()
     
     @patch('googleapiclient.discovery.build')
     def test_get_user_gmail_service(self, mock_build):
@@ -117,15 +118,15 @@ class CalendarIntegrationTests(TestCase):
     def setUp(self):
         # Create test user
         self.user = User.objects.create_user(
-            username='testuser',
-            email='test@example.com',
+            username='calendar_testuser',
+            email='calendar@example.com',
             password='testpassword'
         )
-        self.profile = UserProfile.objects.create(
-            user=self.user,
-            google_token='test_token',
-            google_refresh_token='test_refresh_token'
-        )
+        # Get the automatically created profile and update it
+        self.profile = UserProfile.objects.get(user=self.user)
+        self.profile.google_token = 'test_token'
+        self.profile.google_refresh_token = 'test_refresh_token'
+        self.profile.save()
     
     @patch('googleapiclient.discovery.build')
     def test_get_user_calendar_service(self, mock_build):
@@ -222,15 +223,15 @@ class HubspotIntegrationTests(TestCase):
     def setUp(self):
         # Create test user
         self.user = User.objects.create_user(
-            username='testuser',
-            email='test@example.com',
+            username='hubspot_testuser',
+            email='hubspot@example.com',
             password='testpassword'
         )
-        self.profile = UserProfile.objects.create(
-            user=self.user,
-            hubspot_token='test_token',
-            hubspot_refresh_token='test_refresh_token'
-        )
+        # Get the automatically created profile and update it
+        self.profile = UserProfile.objects.get(user=self.user)
+        self.profile.hubspot_token = 'test_token'
+        self.profile.hubspot_refresh_token = 'test_refresh_token'
+        self.profile.save()
     
     @patch('requests.get')
     def test_get_hubspot_contacts(self, mock_get):
