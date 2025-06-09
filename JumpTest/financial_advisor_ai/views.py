@@ -931,6 +931,7 @@ def chat_message(request, chat_id):
                     )
         else:
             # No specific person mentioned, process normally
+            print("No specific person mentioned, processing normally.")
             answer = rag_service.answer_question(message_text, history)
 
         # Save assistant response
